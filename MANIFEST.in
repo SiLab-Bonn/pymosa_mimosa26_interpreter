@@ -1,0 +1,5 @@
+include README.* VERSION
+recursive-include examples *
+recursive-include tests *
+recursive-include pybar_mimosa26_interpreter *
+global-exclude *.pyc .project .pydevproject build
