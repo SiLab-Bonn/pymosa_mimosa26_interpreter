@@ -15,7 +15,7 @@ def m26_decode(raw,fout,start=0,end=-1):
   idx=[-1]*6
   numstatus=[0]*6
   row=[-1]*6
-  dat=np.empty(n,dtype=[('plane', '<u2'),('mframe', '<u4'),('x', '<u2'), ('y', '<u2'),('tlu','<u2')])
+  dat=np.empty(n,dtype=[('plane', '<u2'),('mframe', '<u4'),('time','<u4'),('x', '<u2'), ('y', '<u2'),('tlu','<u2')])
   with open("hit.npy","wb") as f:
       pass
   raw_i=start
@@ -37,10 +37,14 @@ def m26_decode(raw,fout,start=0,end=-1):
             print hex(raw_d),
         plane=((raw_d>>20) & 0xF)
         mid=plane-1
-        if (0x000FFFFF & raw_d==0x15555):
+        if (0x00010000 & raw_d==0x10000):
             idx[mid]=0
+            t[plane]=raw_d & 0xFFFF
             if debug:
                 print mid, idx[mid], "start"
+        elif (0x00020000 & raw_d==0x20000):
+            idx[mid]=-1
+            print "DATA LOSS",hex(raw_d)
         elif idx[mid]==-1:
             if debug:
                 print mid, idx[mid], "trash"
@@ -49,10 +53,9 @@ def m26_decode(raw,fout,start=0,end=-1):
             if debug:
                 print mid, idx[mid],
             if idx[mid]==1:
+                t[plane]= (raw_d & 0xFFFF)<<16 | t[plane]
                 if debug:
-                    print "header"
-                if (0x0000FFFF & raw_d)!=(0x5550 | plane):
-                    print "header ERROR",hex(raw_d)
+                    print "time",t[plane]
             elif idx[mid]==2:
                 if debug:
                     print "frame lsb"
@@ -103,13 +106,14 @@ def m26_decode(raw,fout,start=0,end=-1):
                     if debug:
                         print "col",col,"num",num
                     for k in range(num+1):
-                        dat[hit]=(plane,mframe[plane],col+k,row[mid],0)
+                        dat[hit]=(plane,mframe[plane],t[plane],col+k,row[mid],0)
                         hit=hit+1
     elif(0x80000000 & raw_d==0x80000000):
         tlu= raw_d & 0xFFFF
+        t[0]= (raw_d >>16) & 0x7FFF
         if debug:
             print hex(raw_d)
-        dat[hit]=(7,mframe[0],0,0,tlu)
+        dat[hit]=(7,mframe[0],t[0],0,0,tlu)
         hit=hit+1
     raw_i=raw_i+1
   if debug:
