@@ -17,13 +17,16 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - [%(leve
 @njit
 def fill_occupanc_hist(hist, hits):
     for hit_index in range(hits.shape[0]):
-        hist[hits[hit_index]['plane']][hits[hit_index]['column'], hits[hit_index]['row']] += 1
+        if hits[hit_index]['plane']==0:
+            pass  # tlu data in plane=0 
+        else:
+            hist[hits[hit_index]['plane']-1][hits[hit_index]['column'], hits[hit_index]['row']] += 1
 
 
 class DataInterpreter(object):
     ''' Class to provide an easy to use interface to encapsulate the interpretation process.'''
 
-    def __init__(self, raw_data_file, analyzed_data_file=None, create_pdf=True, chunk_size=5000000):
+    def __init__(self, raw_data_file, analyzed_data_file=None, create_pdf=True, chunk_size=5000000): 
         '''
         Parameters
         ----------
@@ -124,7 +127,6 @@ class DataInterpreter(object):
                 logging.info("Interpreting...")
                 progress_bar = progressbar.ProgressBar(widgets=['', progressbar.Percentage(), ' ', progressbar.Bar(marker='*', left='|', right='|'), ' ', progressbar.AdaptiveETA()], maxval=in_file_h5.root.raw_data.shape[0], term_width=80)
                 progress_bar.start()
-
                 for word_index in range(0, in_file_h5.root.raw_data.shape[0], self.chunk_size):  # Loop over all words in the actual raw data file in chunks
                     raw_data_chunk = in_file_h5.root.raw_data.read(word_index, word_index + self.chunk_size)
                     hits = self._raw_data_interpreter.interpret_raw_data(raw_data_chunk)
@@ -134,7 +136,6 @@ class DataInterpreter(object):
 
                     if self.create_occupancy_hist:
                         fill_occupanc_hist(self.occupancy_arrays, hits)
-
                     progress_bar.update(word_index)
                 progress_bar.finish()
 
