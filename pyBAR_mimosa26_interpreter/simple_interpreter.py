@@ -8,7 +8,7 @@ import tables
 
 hit_dtype = np.dtype([('plane', '<u1'),('mframe', '<u4'),('timestamp','<u4'),('tlu', '<u2'),('x', '<u2'), ('y', '<u2'), ('val','<u2'),('val2','<u2')])
 
-@njit
+#@njit
 def _m26_interpreter(raw, dat, idx,mframe,timestamp,dlen,numstatus,row,tlu,lv1,ovf): 
     fetot = 0
     fecol = 0
@@ -64,6 +64,7 @@ def _m26_interpreter(raw, dat, idx,mframe,timestamp,dlen,numstatus,row,tlu,lv1,o
                 elif idx[mid] == 7 + dlen[mid]:
                     dlen[mid] = -1
                     numstatus[mid] = 0
+                    print raw_i,hex(raw_d),mframe[plane],plane
                     if raw_d & 0xFFFF != (0xaa50 | plane): 
                         return dat[:hit],raw_i,5  ##MIMOSA_TAILER2_ERROR
                 else:
@@ -232,16 +233,10 @@ def m26_interpreter(fin,fout):
                     break
             
 if __name__=="__main__":
-    import os
-    flist=os.listdir("../mimosa")
-    for fin in flist:
-        #print fin
-        if fin=="64_mmc3_telescope.h5" :
-            continue
-        if ("_telescope" in fin) and (not "interpreted" in fin) and fin[-3:]==".h5":
-            fout=os.path.join("../hits",fin[:-3]+"_hits.h5")
-            fin=os.path.join("../mimosa",fin)
-            m26_interpreter(fin,fout)
+    import os,sys
+    fin=sys.argv[1]
+    fout=fin+"hits.h5"
+    m26_interpreter(fin,fout)
             
 
 
