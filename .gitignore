@@ -60,3 +60,4 @@ data_interpreter.cpp
 # Mac
 .DS_Store
 changelog
+*~
