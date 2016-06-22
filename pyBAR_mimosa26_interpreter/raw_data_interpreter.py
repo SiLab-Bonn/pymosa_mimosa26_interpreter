@@ -111,17 +111,17 @@ def add_event_status(plane_id, event_status, status_code):
     event_status[plane_id] |= status_code
 
 
-@njit
-def finish_event(plane_id, hits_buffer, hit_buffer_index, event_status, hits, hit_index, trigger_number_begin, trigger_number_end):  # Append buffered hits to hit object
-    for i_hit in range(hit_buffer_index):  # Loop over buffered hits
-        hits[hit_index] = hits_buffer[plane_id, i_hit]
-        hits[hit_index]['event_status'] = event_status
-        hits[hit_index]['trigger_number_end'] = trigger_number_end
-        hits[hit_index]['trigger_number_begin'] = trigger_number_begin
-        hit_index += 1
-        if hit_index > hits.shape[0] - 1:
-            raise RuntimeError('Hits array is too small for the hits. Tell developer!')
-    return hit_index  # Return actual hit index; needed to append correctly at next call of finish_event
+#@njit
+#def finish_event(plane_id, hits_buffer, hit_buffer_index, event_status, hits, hit_index, trigger_number_begin, trigger_number_end):  # Append buffered hits to hit object
+#    for i_hit in range(hit_buffer_index):  # Loop over buffered hits
+#        hits[hit_index] = hits_buffer[plane_id, i_hit]
+#        hits[hit_index]['event_status'] = event_status
+#        hits[hit_index]['trigger_number_end'] = trigger_number_end[1]
+#        hits[hit_index]['trigger_number_begin'] = trigger_number_begin[2]
+#        hit_index += 1
+#        if hit_index > hits.shape[0] - 1:
+#            raise RuntimeError('Hits array is too small for the hits. Tell developer!')
+#    return hit_index  # Return actual hit index; needed to append correctly at next call of finish_event
     
 @njit
 def get_event_number(plane_id, event_number, timestamp):
@@ -136,7 +136,7 @@ def get_event_number(plane_id, event_number, timestamp):
     return event_number[plane_id]+1
              
 @njit
-def build_hits(raw_data, frame_id, last_frame_id, frame_length, word_index, n_words, row, hits_buffer, hit_buffer_index, 
+def build_hits(raw_data, frame_id, last_frame_id, frame_length, word_index, n_words, row, #hits_buffer, hit_buffer_index, 
                event_status, event_number, trigger_number_begin, trigger_number_end, timestamp, max_hits_per_event, debug):
     ''' Main interpretation function. Loops over the raw data an creates a hit array. Data errors are checked for.
     A lot of parameters are needed, since the variables have to be buffered for chunked analysis and given for
@@ -198,41 +198,58 @@ def build_hits(raw_data, frame_id, last_frame_id, frame_length, word_index, n_wo
             if is_data_loss(word):
             # Reset all planes
                 word_index[0] = -1
-                hit_buffer_index[0]=0
                 event_status[0] = 0
                 word_index[1] = -1
-                hit_buffer_index[1]=0
                 event_status[1] = 0
                 word_index[2] = -1
-                hit_buffer_index[2]=0
                 event_status[2] = 0
                 word_index[3] = -1
-                hit_buffer_index[3]=0
                 event_status[3] = 0
                 word_index[4] = -1
-                hit_buffer_index[4]=0
                 event_status[4] = 0
                 word_index[5] = -1
-                hit_buffer_index[5]=0
                 event_status[5] = 0
-                trigger_number_begin = 0
-                trigger_number_end = 0
             elif is_frame_header_high(word):  # New event for actual plane; events are aligned at this header
-                # Finish old event
-                if event_number[plane_id] >= 0:  # First event 0 should not trigger a last event finish, since there is none
-                    if last_frame_id[plane_id] > 0 and frame_id[plane_id] != last_frame_id[plane_id] + 1:
+                # shift trigger_number
+                if last_frame_id[plane_id] > 0 and frame_id[plane_id] != last_frame_id[plane_id] + 1:
+                        trigger_number_begin[2] = 0xFFFF
+                        trigger_number_end[2] = 0xFFFF
+                        trigger_number_begin[1] = 0xFFFF
+                        trigger_number_end[1] = 0xFFFF
+                        trigger_number_begin[0] = 0xFFFF
+                        trigger_number_end[0] = 0xFFFF
+                        trigger_number_begin[3] = 0xFFFF
+                        trigger_number_end[3] = 0xFFFF
                         add_event_status(plane_id, event_status, DATA_ERROR)
-                    last_frame_id[plane_id] = frame_id[plane_id]
-                    hit_index = finish_event(plane_id, hits_buffer, hit_buffer_index[plane_id], event_status[plane_id], 
-                                             hits, hit_index,trigger_number_begin,trigger_number_end)
+                elif plane_id == 0:   ### TODO reset trigger_number at the first header not plane_id==0
+                    trigger_number_begin[2] = trigger_number_begin[1]
+                    trigger_number_end[2] = trigger_number_end[1]
+                    trigger_number_begin[1] = trigger_number_begin[0]
+                    trigger_number_end[1] = trigger_number_end[0]
+                    trigger_number_begin[0] = 0xFFFF
+                    trigger_number_end[0] = 0xFFFF
+                    if trigger_number_begin[2]==0xFFFF:
+                        if trigger_number_begin[1]==0xFFFF:
+                              trigger_number_begin[3] = 0xFFFF
+                              trigger_number_end[3] = 0xFFFF
+                        else:
+                              trigger_number_begin[3] = trigger_number_begin[1]
+                              trigger_number_end[3] = trigger_number_end[1]
+                    else: 
+                        if trigger_number_begin[1]==0xFFFF:
+                              trigger_number_begin[3] = trigger_number_begin[2]
+                              trigger_number_end[3] = trigger_number_end[2]
+                        else:
+                              trigger_number_begin[3] = trigger_number_begin[2]
+                              trigger_number_end[3] = trigger_number_end[1]                             
+                    #print trigger_number_begin[2],trigger_number_begin[1],"-b-",trigger_number_begin[3]
+                    #print trigger_number_end[2],trigger_number_end[1],"-e-",trigger_number_end[3]
+                last_frame_id[plane_id] = frame_id[plane_id]
                 # Reset counter
-                hit_buffer_index[plane_id] = 0
                 event_status[plane_id] = 0
                 word_index[plane_id] = 0
                 timestamp[plane_id] = get_timestamp_low(word)
-                if plane_id == 0:   ### TODO reset trigger_number at the first header not plane_id==0
-                    trigger_number_begin = 0
-                    trigger_number_end = 0
+
             elif word_index[plane_id]==-1:  ## trash data 
                 pass
             else:
@@ -281,42 +298,43 @@ def build_hits(raw_data, frame_id, last_frame_id, frame_length, word_index, n_wo
                         n_hits = get_n_hits(word)
                         column = get_column(word)
                         for k in range(n_hits + 1):
-                            if hit_buffer_index[plane_id] < max_hits_per_event:
-                                hits_buffer[plane_id, hit_buffer_index[plane_id]]['event_number'] = event_number[plane_id]
-                                hits_buffer[plane_id, hit_buffer_index[plane_id]]['timestamp'] = timestamp[plane_id]
-                                hits_buffer[plane_id, hit_buffer_index[plane_id]]['plane'] = plane_id +1
-                                hits_buffer[plane_id, hit_buffer_index[plane_id]]['frame'] = frame_id[plane_id]
-                                hits_buffer[plane_id, hit_buffer_index[plane_id]]['column'] = column + k
-                                hits_buffer[plane_id, hit_buffer_index[plane_id]]['row'] = row[plane_id]
-                                hit_buffer_index[plane_id] += 1
-                            else:
-                                add_event_status(plane_id, event_status, TRUNC_EVENT)
+                                hits[hit_index]['event_number'] = event_number[plane_id]
+                                hits[hit_index]['timestamp'] = timestamp[plane_id]
+                                hits[hit_index]['plane'] = plane_id +1
+                                hits[hit_index]['frame'] = frame_id[plane_id]
+                                hits[hit_index]['column'] = column + k
+                                hits[hit_index]['row'] = row[plane_id]
+                                hits[hit_index]['trigger_number_end'] = trigger_number_end[3]
+                                hits[hit_index]['trigger_number_begin'] = trigger_number_begin[3]
+                                hits[hit_index]['event_status'] = event_status[plane_id]
+                                hit_index += 1
         elif is_trigger_word(word):
-            trigger_number_end = get_trigger_number(word)
-            if trigger_number_begin == 0:
-                trigger_number_begin=trigger_number_end
-            if (debug & 1) == 1:
+            #print raw_i, hex(word), get_trigger_number(word)
+            trigger_number_end[0] = get_trigger_number(word)
+            if trigger_number_begin[0] == 0xFFFF:
+                trigger_number_begin[0]=trigger_number_end[0]
+            if True: #(debug & 1) == 1:
                 hits[hit_index]['event_number'] = event_number[0]
-                hits[hit_index]['trigger_number_begin'] = trigger_number_begin
+                hits[hit_index]['trigger_number_begin'] = trigger_number_begin[0]
                 hits[hit_index]['timestamp'] = get_trigger_timestamp(word)
                 hits[hit_index]['plane'] = 0
                 hits[hit_index]['frame'] = frame_id[0]
                 hits[hit_index]['column'] = 0
-                hits[hit_index]['trigger_number_end'] = trigger_number_end
+                hits[hit_index]['trigger_number_end'] = trigger_number_end[0]
                 hits[hit_index]['trigger_status'] = 1
                 hits[hit_index]['event_status'] = 0
                 hits[hit_index]['row'] = 0
                 hit_index=hit_index+1
             ### trigger_timestamp = get_trigger_timestamp(word)  ## TODO compare with timestamp of m26
             
-    return (hits[:hit_index], frame_id, last_frame_id, frame_length, word_index, n_words, row, hits_buffer, hit_buffer_index, 
+    return (hits[:hit_index], frame_id, last_frame_id, frame_length, word_index, n_words, row,
             event_status, event_number, trigger_number_begin, trigger_number_end, timestamp)
 
 
 class RawDataInterpreter(object):
     ''' Class to convert the raw data chunks to hits'''
 
-    def __init__(self, max_hits_per_event=1000, debug=0):
+    def __init__(self, max_hits_per_event=1000, debug=1):
         self.max_hits_per_event = max_hits_per_event
         self.debug = debug
         self.reset()
@@ -329,15 +347,13 @@ class RawDataInterpreter(object):
         self.word_index = np.ones(6, np.int32) * -1  # The word index per device of the actual frame
         self.timestamp = np.ones(6, np.int32) * -1  # The word index per device of the actual frame
         self.n_words = np.zeros(6, np.uint32)  # The number of words containing column / row info
-        self.row = np.ones(6, np.int32) * -1  # the actual readout row (rolling shutter)
+        self.row = np.ones(6, np.uint32) * 0xffffffff  # the actual readout row (rolling shutter)
 
         # Per event variables
-        self.hits_buffer = np.zeros((6, self.max_hits_per_event), dtype=hit_dtype)  # Buffers actual event hits, needed since raw data is analyzed in chunks
-        self.hit_buffer_index = np.zeros(6, np.uint32)  # Hit buffer index for each plane; needed to append hits
         self.event_status = np.zeros(shape=(6, ), dtype=np.uint16)  # Actual event status for each plane
         self.event_number = np.ones(6, np.int64) * -1  # The event counter set by the software counting full events for each plane
-        self.trigger_number_begin = 0  # The event trigger number begin
-        self.trigger_number_end = 0  # The event trigger number end
+        self.trigger_number_begin = np.ones(4, np.uint16) * 0xFFFF   # The event trigger number begin
+        self.trigger_number_end = np.ones(4, np.uint16) * 0xFFFF   # The event trigger number end
 
     def interpret_raw_data(self, raw_data):
         chunk_result = build_hits(raw_data=raw_data,
@@ -347,8 +363,6 @@ class RawDataInterpreter(object):
                                   word_index=self.word_index,
                                   n_words=self.n_words,
                                   row=self.row,
-                                  hits_buffer=self.hits_buffer,
-                                  hit_buffer_index=self.hit_buffer_index,
                                   event_status=self.event_status,
                                   event_number=self.event_number,
                                   trigger_number_begin=self.trigger_number_begin,
@@ -365,8 +379,6 @@ class RawDataInterpreter(object):
          self.word_index,
          self.n_words,
          self.row,
-         self.hits_buffer,
-         self.hit_buffer_index,
          self.event_status,
          self.event_number,
          self.trigger_number_being,

@@ -14,5 +14,6 @@ fname=sys.argv[1]
 print fname
 # Example 2: How to use the interpretation class to convert a raw data tabe
 with data_interpreter.DataInterpreter(raw_data_file=fname) as raw_data_analysis:
+    raw_data_analysis.create_hit_table=True
     raw_data_analysis.interpret_word_table()
 

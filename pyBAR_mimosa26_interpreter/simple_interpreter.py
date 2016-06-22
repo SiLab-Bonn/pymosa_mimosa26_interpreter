@@ -8,7 +8,7 @@ import tables
 
 hit_dtype = np.dtype([('plane', '<u1'),('mframe', '<u4'),('timestamp','<u4'),('tlu', '<u2'),('x', '<u2'), ('y', '<u2'), ('val','<u2'),('val2','<u2')])
 
-#@njit
+@njit
 def _m26_interpreter(raw, dat, idx,mframe,timestamp,dlen,numstatus,row,tlu,lv1,ovf): 
     fetot = 0
     fecol = 0
@@ -64,7 +64,7 @@ def _m26_interpreter(raw, dat, idx,mframe,timestamp,dlen,numstatus,row,tlu,lv1,o
                 elif idx[mid] == 7 + dlen[mid]:
                     dlen[mid] = -1
                     numstatus[mid] = 0
-                    print raw_i,hex(raw_d),mframe[plane],plane
+                    #print raw_i,hex(raw_d),mframe[plane],plane
                     if raw_d & 0xFFFF != (0xaa50 | plane): 
                         return dat[:hit],raw_i,5  ##MIMOSA_TAILER2_ERROR
                 else:
@@ -202,8 +202,8 @@ def m26_interpreter(fin,fout):
                 else:
                     if err==1:
                         print "MIMOSA_ROW_ERROR",
-                    elif err==2:
-                        print "MIMOSA_COL_ERROR",
+                    #elif err==2:
+                    #    print "MIMOSA_COL_ERROR",
                     elif err==3:
                         print "MIMOSA_DLEN_ERROR",
                     elif err==4:
@@ -216,10 +216,10 @@ def m26_interpreter(fin,fout):
                         print "FEI4_TOT2_ERROR",
                     elif err==8:
                         print "MIMOSA_OVF_WARN",
-                    print err,start,raw_i,hex(tb.root.raw_data[start+raw_i])
-                    for j in range(-100,100,1):
-                        print "ERROR %4d"%j,start+raw_i+j,hex(tb.root.raw_data[start+raw_i+j])
-                    break
+                    #print err,start,raw_i,hex(tb.root.raw_data[start+raw_i])
+                    #for j in range(-100,100,1):
+                    #    print "ERROR %4d"%j,start+raw_i+j,hex(tb.root.raw_data[start+raw_i+j])
+                    #break
                 if start==0:
                     description = np.zeros((1, ), dtype=hit_dtype).dtype
                     hit_table = out_file_h5.create_table(out_file_h5.root, 
