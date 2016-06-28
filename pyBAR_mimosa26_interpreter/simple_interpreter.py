@@ -8,7 +8,7 @@ import tables
 
 hit_dtype = np.dtype([('plane', '<u1'),('mframe', '<u4'),('timestamp','<u4'),('tlu', '<u2'),('x', '<u2'), ('y', '<u2'), ('val','<u2'),('val2','<u2')])
 
-@njit
+#@njit
 def _m26_interpreter(raw, dat, idx,mframe,timestamp,dlen,numstatus,row,tlu,lv1,ovf): 
     fetot = 0
     fecol = 0
@@ -64,7 +64,7 @@ def _m26_interpreter(raw, dat, idx,mframe,timestamp,dlen,numstatus,row,tlu,lv1,o
                 elif idx[mid] == 7 + dlen[mid]:
                     dlen[mid] = -1
                     numstatus[mid] = 0
-                    #print raw_i,hex(raw_d),mframe[plane],plane
+                    print raw_i,hex(raw_d),mframe[plane],plane
                     if raw_d & 0xFFFF != (0xaa50 | plane): 
                         return dat[:hit],raw_i,5  ##MIMOSA_TAILER2_ERROR
                 else:
@@ -101,7 +101,7 @@ def _m26_interpreter(raw, dat, idx,mframe,timestamp,dlen,numstatus,row,tlu,lv1,o
             timestamp[0] = (raw_d >>16) & 0x7FFF | (timestamp[1] & 0xFFFF8000) # TODO be more precise.
             if timestamp[0] < timestamp[1]:
                 if timestamp[0] < 0xFFFF8000:
-                  timestamp[0]= timestamp[0] + 0x8000
+                    timestamp[0]= timestamp[0] + 0x8000
                 else:
                     timestamp[0]= (timestamp[0]-0xFFFF8000) + 0x8000
             mframe[0] = mframe[1]

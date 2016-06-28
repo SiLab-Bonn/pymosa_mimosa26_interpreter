@@ -65,47 +65,47 @@ def build_corr_fm(fe_hits, m26_hits, corr_x, corr_y):
             if fe_buf_i> 300:
                 return -1, -1
         if fh_i>=fe_hits.shape[0]-1:
-            print "return by fei4", m26_hits[:m26_index],m26_hits[m26_index]
-            print fe_hits.dtype
-            print fe_hits[:fe_index],fe_hits[fe_index]
+#             print "return by fei4", m26_hits[:m26_index],m26_hits[m26_index]
+#             print fe_hits.dtype
+#             print fe_hits[:fe_index],fe_hits[fe_index]
             return fe_index,m26_index
         ### search m data
-        print "m26 start", fe_buf_i,m26_buf_i,"+1",m26_hits[m26_index]["frame"]+1,m26_hits[m26_index]["frame"]+2
+#         print "m26 start", fe_buf_i,m26_buf_i,"+1",m26_hits[m26_index]["frame"]+1,m26_hits[m26_index]["frame"]+2
         for mh_i in range(m26_index,m26_hits.shape[0]): 
             if m26_hits[mh_i]["frame"]==m26_hits[m26_index]["frame"]+1:
-               #print "+1",m26_hits[m26_index]["frame"],m26_hits[mh_i]["frame"],m26_buf_i,m26_hits.shape[0],fe_hits.shape[0]
-               mh_i1=mh_i
-               m26_bufx[m26_buf_i]=m26_hits[mh_i]["column"]
-               m26_bufy[m26_buf_i]=m26_hits[mh_i]["row"]
-               m26_buf_i=m26_buf_i+1
+                #print "+1",m26_hits[m26_index]["frame"],m26_hits[mh_i]["frame"],m26_buf_i,m26_hits.shape[0],fe_hits.shape[0]
+                mh_i1=mh_i
+                m26_bufx[m26_buf_i]=m26_hits[mh_i]["column"]
+                m26_bufy[m26_buf_i]=m26_hits[mh_i]["row"]
+                m26_buf_i=m26_buf_i+1
             elif m26_hits[mh_i]["frame"]==m26_hits[m26_index]["frame"]+2:
-               #print "+2",m26_hits[m26_index]["frame"],m26_hits[mh_i]["frame"],m26_buf_i,m26_buf_i,m26_hits.shape[0],fe_hits.shape[0]
-               m26_bufx[m26_buf_i]=m26_hits[mh_i]["column"]
-               m26_bufy[m26_buf_i]=m26_hits[mh_i]["row"]
-               m26_buf_i=m26_buf_i+1
+                #print "+2",m26_hits[m26_index]["frame"],m26_hits[mh_i]["frame"],m26_buf_i,m26_buf_i,m26_hits.shape[0],fe_hits.shape[0]
+                m26_bufx[m26_buf_i]=m26_hits[mh_i]["column"]
+                m26_bufy[m26_buf_i]=m26_hits[mh_i]["row"]
+                m26_buf_i=m26_buf_i+1
             elif m26_hits[mh_i]["frame"]>m26_hits[m26_index]["frame"]+2:
-                  m26_index=mh_i1
-                  #print "break",m26_hits[mh_i]["frame"],m26_hits[m26_index]["frame"],m26_buf_i,m26_hits.shape[0],fe_hits.shape[0]
-                  break
+                m26_index=mh_i1
+                #print "break",m26_hits[mh_i]["frame"],m26_hits[m26_index]["frame"],m26_buf_i,m26_hits.shape[0],fe_hits.shape[0]
+                break
             if m26_buf_i> 300:
                 return -1, -1
         #print "buf start m26x", m26_bufx[:m26_buf_i]
         #print "buf start fex", fe_bufx[:fe_buf_i]
         for i in range(fe_buf_i): 
-             for j in range(m26_buf_i):
-                 corr_x[m26_bufx[j]][fe_bufx[i]]=corr_x[m26_bufx[j]][fe_bufx[i]]+1
-                 corr_y[m26_bufy[j]][fe_bufy[i]]=corr_y[m26_bufy[j]][fe_bufy[i]]+1
+            for j in range(m26_buf_i):
+                corr_x[m26_bufx[j]][fe_bufx[i]]=corr_x[m26_bufx[j]][fe_bufx[i]]+1
+                corr_y[m26_bufy[j]][fe_bufy[i]]=corr_y[m26_bufy[j]][fe_bufy[i]]+1
         fe_buf_i=0
         m26_buf_i=0
         if mh_i>=m26_hits.shape[0]-1:
-            print "return by mimosa",m26_index,m26_hits[:m26_index],m26_hits[m26_index]
-            print fe_hits.dtype
-            print fe_index_previous,fe_index,fe_hits[:fe_index],fe_hits[fe_index]
+#             print "return by mimosa",m26_index,m26_hits[:m26_index],m26_hits[m26_index]
+#             print fe_hits.dtype
+#             print fe_index_previous,fe_index,fe_hits[:fe_index],fe_hits[fe_index]
             fe_index = fe_index_previous
-            print 'fe trigger number',
+#             print 'fe trigger number',
             for ff in fe_hits:
                 print ff['trigger_number'] & 0xFFFF,
-            print ""
+#             print ""
             return fe_index,m26_index
     #print m26_hits[:m26_index],m26_hits[m26_index]
     #print fe_hits.dtype
