@@ -14,11 +14,11 @@ def build_corr_fm(fe_hits, m26_hits, corr_x, corr_y):
     m26_index=0
     m26_trigger_end=0
     m26_buf_i=0
-    m26_bufx=np.empty(300,dtype=type(1))
-    m26_bufy=np.empty(300,dtype=type(1))
+    m26_bufx=np.empty(300,dtype=np.uint32) #dtype=np.uint32
+    m26_bufy=np.empty(300,dtype=np.uint32)
     fe_buf_i=0
-    fe_bufx=np.empty(300,dtype=type(1))
-    fe_bufy=np.empty(300,dtype=type(1))
+    fe_bufx=np.empty(300,dtype=np.uint32)
+    fe_bufy=np.empty(300,dtype=np.uint32)
     while m26_index<m26_hits.shape[0]:
         if m26_hits[m26_index]["trigger_number_begin"]==0:
             m26_index=m26_index+1
@@ -103,8 +103,8 @@ def build_corr_fm(fe_hits, m26_hits, corr_x, corr_y):
 #             print fe_index_previous,fe_index,fe_hits[:fe_index],fe_hits[fe_index]
             fe_index = fe_index_previous
 #             print 'fe trigger number',
-            for ff in fe_hits:
-                print ff['trigger_number'] & 0xFFFF,
+            #for ff in fe_hits:
+#                 print ff['trigger_number'] & 0xFFFF,
 #             print ""
             return fe_index,m26_index
     #print m26_hits[:m26_index],m26_hits[m26_index]
