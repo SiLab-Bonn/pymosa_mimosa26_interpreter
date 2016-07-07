@@ -1,10 +1,16 @@
 from numba import njit
 import numpy as np
+from testbeam_analysis.tools import analysis_utils
+
+fe_dtype = np.dtype([('event_number', '<i8'), ('trigger_number', '<u4'), ('relative_BCID', 'u1'), ('LVL1ID', '<u2'), ('column', 'u1'), ('row', '<u2'), ('tot', 'u1'), ('BCID', '<u2'), ('TDC', '<u2'), ('TDC_time_stamp', 'u1'), ('trigger_status', 'u1'), ('service_record', '<u4'), ('event_status', '<u2')])
 
 hit_dtype = np.dtype([('event_number', '<i8'),('timestamp', '<u4'), ('trigger_number_begin', '<u2'),('trigger_number_end', '<u2'), 
                       ('plane', '<u2'), ('frame', '<u4'), ('column', '<u2'), ('row', '<u4'),('trigger_status', '<u2'), ('event_status', '<u2')])
 
-#@njit
+test_m26 = np.array([(29123, 130515341L, 12883, 12890, 2, 35435470L, 555, 333L, 52171, 0),(29123, 130515341L, 12883, 12890, 2, 35435470L, 666, 444L, 52171, 0)],hit_dtype)
+test_fe = np.array([(45593, 24326746L, 7, 10, 300, 500, 3, 189, 0, 0, 1, 0L, 64),(45593, 24326747L, 7, 10, 400, 600, 3, 189, 0, 0, 1, 0L, 64)], fe_dtype)
+
+@njit
 def build_corr_fm(fe_hits, m26_hits, corr_col, corr_row, dut1, dut2): #make correlation between frontend and mimosa
     #fei4 variables
     fe_hit_index = 0 #store loop index to loop through fei4 data
@@ -18,6 +24,7 @@ def build_corr_fm(fe_hits, m26_hits, corr_col, corr_row, dut1, dut2): #make corr
     #mimosa variables
     m26_hit_index = 0 # see above
     m26_index = 0 #see above
+    m26_index_prev = 0
     m26_frame = 0 #store frame number of current mimosa data
     m26_trigger_begin = 0 #store beginning of trigger range of current frame
     m26_trigger_end = 0 #store end of trigger range of current frame
@@ -27,7 +34,7 @@ def build_corr_fm(fe_hits, m26_hits, corr_col, corr_row, dut1, dut2): #make corr
     #general
     t_flag = 0
     
-    if dut1 != 0 and dut2 != 0: #if none of the DUTs is 
+    if dut1 != 0 and dut2 != 0: #if none of the DUTs is fei4
         return
     
     while m26_index < m26_hits.shape[0]:
@@ -36,7 +43,7 @@ def build_corr_fm(fe_hits, m26_hits, corr_col, corr_row, dut1, dut2): #make corr
         m26_trigger_end = m26_hits[m26_index]["trigger_number_end"]
         m26_frame = m26_hits[m26_index]['frame']
         
-        if m26_trigger_begin == 0xFFFF and m26_trigger_end == 0xFFFF: #if frame has no trigger, skip
+        if m26_trigger_begin == 0xFFFF and m26_trigger_end == 0xFFFF: #if frame has no trigger, skip. 0xFFFF is returned by interpreter if no trigger in frame
             m26_index += 1
             continue
         
@@ -46,66 +53,68 @@ def build_corr_fm(fe_hits, m26_hits, corr_col, corr_row, dut1, dut2): #make corr
             t_flag = 0 #no overflow
         
         m26_buf_index = 0 #overwrite buffer
-        
         for m26_hit_index in range(m26_index, m26_hits.shape[0]): # go trough mimosa hits
-            
+        
             if m26_hits[m26_hit_index]['frame'] == m26_frame:
-                
+                            
                 m26_buff_col[m26_buf_index] = m26_hits[m26_hit_index]['column']
                 m26_buff_row[m26_buf_index] = m26_hits[m26_hit_index]['row']
                 m26_buf_index += 1
-                m26_index += 1
-            
+                m26_index += 1 
+                 
             elif m26_hits[m26_hit_index]['frame'] > m26_frame:
+                m26_index_prev = m26_index
                 m26_index = m26_hit_index
                 break
-#             else:
-#                 break
-        if m26_buf_index > m26_buff_col.shape[0] or m26_buf_index > m26_buff_row.shape[0]:
-            return -1,-1 #buffer index out of buffer range
+            
+        if m26_hit_index == m26_hits.shape[0] - 1:
+            fe_index = fe_index_prev
+            return fe_index, m26_index
         
+
         fe_buf_index = 0 #overwrite buffer
-        
         for fe_hit_index in range(fe_index, fe_hits.shape[0]): # go through fei4 hits
             
             fe_trigger = fe_hits[fe_hit_index]["trigger_number"] & 0xFFFF #get trigger number
             
-#             if fe_hit_index != 0:
-#                 fe_trigger_prev = fe_hits[fe_hit_index-1]["trigger_number"] & 0xFFFF #get previous trigger number
-#             else:
-#                 fe_trigger_prev = fe_trigger
-            
             fe_index = fe_index_now
-                
+            
             if t_flag == 0: #no trigger overflow
-                
+                    
                 if fe_trigger >= m26_trigger_begin and fe_trigger <= m26_trigger_end:
                     
                     fe_buff_col[fe_buf_index] = fe_hits[fe_hit_index]["column"]
                     fe_buff_row[fe_buf_index] = fe_hits[fe_hit_index]["row"]
                     fe_buf_index += 1
-                    fe_index_now = fe_hit_index
-                      
+                    
                 elif fe_trigger > m26_trigger_end:
                     fe_index_prev = fe_index
-                    fe_index = fe_hit_index
+                    fe_index = fe_index_now
+                    fe_index_now = fe_hit_index
                     break
-                
-            else: #trigger overflow
-                
-                if (fe_trigger >= m26_trigger_begin and fe_trigger <= 0x7fff) or (fe_trigger >=0 and fe_trigger <= m26_trigger_end):
-                          
+            
+            elif t_flag == 1: #trigger overflow
+                    
+                if (fe_trigger >= m26_trigger_begin and fe_trigger <= 0x7fff) or (fe_trigger >=0 and fe_trigger <= m26_trigger_end): #0x7fff is maximum trigger number before overflow
+                      
                     fe_buff_col[fe_buf_index] = fe_hits[fe_hit_index]["column"]
                     fe_buff_row[fe_buf_index] = fe_hits[fe_hit_index]["row"]
                     fe_buf_index += 1
-                    fe_index_now = fe_hit_index 
-                
-                elif fe_trigger > m26_trigger_end: # and fe_trigger < 0x4000:
+                    
+                elif fe_trigger > m26_trigger_end:    
                     fe_index_prev = fe_index
-                    fe_index = fe_hit_index
+                    fe_index = fe_index_now
+                    fe_index_now = fe_hit_index
                     break
+                   
+        if fe_hit_index >= fe_hits.shape[0] - 1: #if fe data only has triggers smaller than m26_trigger_begin, loop runs trough without breaking; 
+            m26_index = m26_index_prev #we want to keep the m26 data so we go back to the previous index
+            return fe_index, m26_index
+                                
+        if m26_buf_index > m26_buff_col.shape[0] or m26_buf_index > m26_buff_row.shape[0]:#if buffer indices are out of buffer range
+            return -1,-1 #buffer index out of buffer range
         
-        if fe_buf_index > fe_buff_col.shape[0] or fe_buf_index > fe_buff_row.shape[0]:
+        if fe_buf_index > fe_buff_col.shape[0] or fe_buf_index > fe_buff_row.shape[0]: #if buffer indices are out of buffer range
             return -1,-1 #buffer index out of buffer range
               
         for i in range(fe_buf_index): #fill histogramms
@@ -116,70 +125,115 @@ def build_corr_fm(fe_hits, m26_hits, corr_col, corr_row, dut1, dut2): #make corr
                 elif dut2 == 0:
                     corr_col[m26_buff_col[j]][fe_buff_row[i]] += 1 #m26_col corresponds to fe_row because of geometry of telescope
                     corr_row[m26_buff_row[j]][fe_buff_col[i]] += 1 #m26_row corresponds to fe_col because of geometry of telescope       
-        if m26_index >= m26_hits.shape[0]-1:
-            fe_index = fe_index_prev
-            return fe_index, m26_index
         
+         
     return fe_index, m26_index
 
 #@njit    
 def build_corr_mm(m26_hits0,m26_hits1, corr_col, corr_row):
+    
+    
     #variables
     m0_index = 0
     m1_index = 0
     m0_buf_index = 0
     m1_buf_index = 0
-    m0_frame = 0
-    m1_frame = 0
+    #m0_frame = 0
+    #m1_frame = 0
     m0_hit_index = 0
     m1_hit_index = 0
-    m26_buff_col0 = np.zeros(1000, dtype=np.uint32)
-    m26_buff_row0 = np.zeros(1000, dtype=np.uint32)
-    m26_buff_col1 = np.zeros(1000, dtype=np.uint32)     
-    m26_buff_row1 = np.zeros(1000, dtype=np.uint32)
-    #data = 0
-    
-    #data = [m26_hits0.shape[0], m26_hits1.shape[0]]
-    
+    m26_buff_col0 = np.zeros(100000, dtype=np.uint32)
+    m26_buff_row0 = np.zeros(100000, dtype=np.uint32)
+    m26_buff_col1 = np.zeros(100000, dtype=np.uint32)     
+    m26_buff_row1 = np.zeros(100000, dtype=np.uint32)
+     
     while m0_index < m26_hits0.shape[0]:
-        try:
-            m0_frame = m26_hits0[m0_index]['frame']
-            m1_frame = m26_hits1[m1_index]['frame']
-        except IndexError:
-            return m0_index, m1_index
+         
+        m0_trig_begin = m26_hits0[m0_index]["trigger_number_begin"]
+        m0_trig_end = m26_hits0[m0_index]["trigger_number_end"]
+         
+        m1_trig_begin = m26_hits1[m1_index]["trigger_number_begin"]
+        m1_trig_end = m26_hits1[m1_index]["trigger_number_end"]
+         
         m0_buf_index = 0
+         
         for m0_hit_index in range(m0_index, m26_hits0.shape[0]):
-            
-            if m0_frame == m26_hits0[m0_hit_index]['frame']:
+             
+            if m0_trig_begin == m1_trig_begin and m0_trig_end == m1_trig_end:
+                 
                 m26_buff_col0[m0_buf_index] = m26_hits0[m0_hit_index]['column'] 
                 m26_buff_row0[m0_buf_index] = m26_hits0[m0_hit_index]['row']
                 m0_buf_index += 1
                 m0_index += 1
-            elif m26_hits0[m0_hit_index]['frame'] > m0_frame:
-                m0_index = m0_hit_index
+            else:
                 break
-            
+             
         m1_buf_index = 0
+         
         for m1_hit_index in range(m1_index, m26_hits1.shape[0]):
-            
-            if m1_frame == m26_hits1[m1_hit_index]['frame']:
+             
+            if m0_trig_begin == m1_trig_begin and m0_trig_end == m1_trig_end:
+     
                 m26_buff_col1[m1_buf_index] = m26_hits1[m1_hit_index]['column'] 
-                m26_buff_row1[m1_buf_index] = m26_hits1[m1_hit_index]['row']
+                m26_buff_row1[m1_buf_index] = m26_hits1[m1_hit_index]['row'] 
                 m1_buf_index += 1
                 m1_index += 1
-            elif m26_hits1[m1_hit_index]['frame'] > m1_frame:
-                m1_index = m1_hit_index
+            else:
                 break
-        
+          
         for i in range(m0_buf_index):
             for j in range(m1_buf_index):
                 corr_col[m26_buff_col0[i]][m26_buff_col1[j]] += 1 #m26_col corresponds to fe_row because of geometry of telescope
                 corr_row[m26_buff_row0[i]][m26_buff_row1[j]] += 1 #m26_row corresponds to fe_col because of geometry of telescope    
+         
         if m0_hit_index >= m26_hits0.shape[0] or m1_hit_index >= m26_hits1.shape[0]:
             break
-        
+     
     return m0_index, m1_index
-
+     
+#     
+#         if m0_index >= m26_hits0.shape[0]-1 or m1_index >= m26_hits1.shape[0]-1:
+#             break 
+#         
+#         m0_frame = m26_hits0[m0_index]['frame']
+#         m1_frame = m26_hits1[m1_index]['frame']
+#             
+#         m0_buf_index = 0
+#         for m0_hit_index in range(m0_index, m26_hits0.shape[0]):
+# #             if m0_index >= m26_hits0.shape[0]-1:
+# #                 break
+#             if m0_frame == m26_hits0[m0_hit_index]['frame']:
+#                 m26_buff_col0[m0_buf_index] = m26_hits0[m0_hit_index]['column'] 
+#                 m26_buff_row0[m0_buf_index] = m26_hits0[m0_hit_index]['row']
+#                 m0_buf_index += 1
+#                 m0_index += 1
+#             elif m26_hits0[m0_hit_index]['frame'] > m0_frame:
+#                 m0_index = m0_hit_index
+#                 break
+#         
+#         m1_buf_index = 0
+#         for m1_hit_index in range(m1_index, m26_hits1.shape[0]):
+# #             if m1_index >= m26_hits1.shape[0]-1:
+# #                 break
+#             if m1_frame == m26_hits1[m1_hit_index]['frame']:
+#                 m26_buff_col1[m1_buf_index] = m26_hits1[m1_hit_index]['column'] 
+#                 m26_buff_row1[m1_buf_index] = m26_hits1[m1_hit_index]['row']
+#                 m1_buf_index += 1
+#                 m1_index += 1
+#             elif m26_hits1[m1_hit_index]['frame'] > m1_frame:
+#                 m1_index = m1_hit_index
+#                 break
+#         
+#         for i in range(m0_buf_index):
+#             for j in range(m1_buf_index):
+#                 corr_col[m26_buff_col0[i]][m26_buff_col1[j]] += 1 #m26_col corresponds to fe_row because of geometry of telescope
+#                 corr_row[m26_buff_row0[i]][m26_buff_row1[j]] += 1 #m26_row corresponds to fe_col because of geometry of telescope    
+#         if m0_hit_index >= m26_hits0.shape[0] or m1_hit_index >= m26_hits1.shape[0]:
+#             break
+#             
+#         
+#     return m0_index, m1_index
+#     
 
 
 
