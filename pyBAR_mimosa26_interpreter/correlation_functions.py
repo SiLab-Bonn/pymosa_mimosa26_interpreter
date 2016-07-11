@@ -113,7 +113,7 @@ def correlate_mm(m0_data, m1_data, corr_col, corr_row):
                 continue
                 
         else: #m0_frame and m1_frame are equal
-            
+                        
             m0_buf_i = 0 #reset buffer index to overwrite entries in buffer
             for m0_i in range(m0_index, m0_data.shape[0]): #search m0_data
                 
@@ -156,3 +156,50 @@ def correlate_mm(m0_data, m1_data, corr_col, corr_row):
                     corr_row[m0_buf_row[i]][m1_buf_row[j]] += 1
                     
     return m0_index, m1_index #only occurs if incoming data streams have no frame numbers in common
+    
+    
+    
+@njit
+def correlate_mm_fast(m0_data, m1_data, corr_col, corr_row):
+    #variables
+    m0_index = 0
+    m1_index = 0
+    #end
+    
+    if m0_data.shape[0] == 0 or m1_data.shape[0] == 0:
+        return m0_index, m1_index
+    
+    else:
+        
+        for m0_index in range(m0_data.shape[0]):
+            
+            m0_frame = m0_data[m0_index]['frame']
+
+            while m1_index < m1_data.shape[0] - 1 and m1_data[m1_index]['frame'] < m0_frame: #keep frame up with outer frame
+                m1_index += 1
+            
+            if m0_index == m0_data.shape[0] - 1 or m1_index == m1_data.shape[0] - 1: #return here if on of the data streams ends, so no correlation for current indices; add this data to next data and then correlate 
+                return m0_index, m1_index
+            
+            for m1_i in range(m1_index, m1_data.shape[0]):
+                
+                m1_frame = m1_data[m1_i]['frame']
+                
+                #if frames are equal, fill histogramms
+                if m0_frame == m1_frame:
+                    corr_col[m0_data[m0_index]['column'], m1_data[m1_i]['column']] += 1
+                    corr_row[m0_data[m0_index]['row'], m1_data[m1_i]['row']] += 1
+                else:
+                    break
+                
+        return -1, -1 #error, should not happen since we return in outer for-loop if one of the indices is m_data.shape[0] -1 
+
+    
+@njit
+def correlate_ff(f0_data, corr_col, corr_row): #f0_data == f1_data for m26 telescope, just to see something when you select both DUTs as FEI4
+
+    for i in range(f0_data.shape[0]):
+        corr_col[f0_data[i]['column']][f0_data[i]['column']] += 1 
+        corr_row[f0_data[i]['row']][f0_data[i]['row']] += 1
+    return f0_data.shape[0] - 1
+     
