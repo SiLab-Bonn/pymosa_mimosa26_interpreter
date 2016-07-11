@@ -82,11 +82,11 @@ def correlate_fm(fe_data, m26_data, corr_col, corr_row, dut1, dut2):
 
 @njit
 def correlate_mm(m0_data, m1_data, corr_col, corr_row):
-    #variables
+    #initialise variables
     m0_index = 0
-    m0_tmp_i = 0
+    m0_prev_i = 0
     m1_index = 0
-    m1_tmp_i = 0
+    m1_prev_i = 0
     m0_i = 0
     m1_i = 0
     m0_buf_i = 0
@@ -95,7 +95,7 @@ def correlate_mm(m0_data, m1_data, corr_col, corr_row):
     m0_buf_row = np.zeros(1000, dtype=np.uint32)
     m1_buf_col = np.zeros(1000, dtype=np.uint32)
     m1_buf_row = np.zeros(1000, dtype=np.uint32)
-    #end
+    #end of initialisation
                                                                            #needs to be m_data.shape[0]-1 because indices start from 0; range(m_data.shape[0]) goes from 0 to m_data.shape[0]-1
     while m0_index < m0_data.shape[0] - 1 and m1_index < m1_data.shape[0] - 1: #need to check both because checking for equality of frames in next if statement; if one data has no matching frames with other data we need to return corresponding indices 
         
@@ -103,9 +103,8 @@ def correlate_mm(m0_data, m1_data, corr_col, corr_row):
         m0_frame = m0_data[m0_index]['frame']
         m1_frame = m1_data[m1_index]['frame']
         
-        #check whether frames are equal; if not increase one of the indices m0_index or m1_index and continue until frames are equal; if no matching frames, loop terminates and return indices
-        if m0_frame != m1_frame:
-            #print "frames not equal", m0_frame, m1_frame, m0_index, m1_index #POSSIBLE_BUG: possible that same frame number occurs for around 20 indices?
+        #check whether frames are equal; if not, increase one of the indices m0_index or m1_index and continue until frames are equal; if no matching frames, loop terminates and returns indices
+        if m0_frame != m1_frame: #frame number can stay the same for several increased indices since mimosa planes can have several hits per frame
             if m0_frame < m1_frame:
                 m0_index += 1
                 continue
@@ -113,45 +112,47 @@ def correlate_mm(m0_data, m1_data, corr_col, corr_row):
                 m1_index += 1
                 continue
                 
-        else: #frames are equal
-            #print "frames EQUAL", m0_frame, m1_frame
-            m1_buf_i = 0
-            for m1_i in range(m1_index, m1_data.shape[0]):
-                
-                if m1_frame == m1_data[m1_i]['frame']:
-                    
-                    m1_buf_col[m1_buf_i] = m1_data[m1_i]['column']
-                    m1_buf_row[m1_buf_i] = m1_data[m1_i]['row']
-                    m1_buf_i += 1
-                
-                elif m1_frame < m1_data[m1_i]['frame']:
-                    m1_tmp_i = m1_index #FIXME:ISTRUE?:#index we need if we reach end of m1_data; since we didnt add anything to histogramm yet, next m1_data has to start from here
-                    m1_index = m1_i
-                    break
-                    
-            if m1_i == m1_data.shape[0] - 1:
-                return m0_index, m1_tmp_i #m1_index  #m1_data finished, can not correlate last frame number, this data must be added to next m1_data
+        else: #m0_frame and m1_frame are equal
             
-            m0_buf_i = 0
-            for m0_i in range(m0_index, m0_data.shape[0]):
+            m0_buf_i = 0 #reset buffer index to overwrite entries in buffer
+            for m0_i in range(m0_index, m0_data.shape[0]): #search m0_data
                 
-                if m0_frame == m0_data[m0_i]['frame']:
+                if m0_frame == m0_data[m0_i]['frame']: #as long as frames are equal, write to buffer
                     
                     m0_buf_col[m0_buf_i] = m0_data[m0_i]['column']
                     m0_buf_row[m0_buf_i] = m0_data[m0_i]['row']
                     m0_buf_i += 1
                 
                 elif m0_frame < m0_data[m0_i]['frame']:
-                    m0_tmp_i = m0_index
+                    m0_prev_i = m0_index #index we need if we reach end of m0_data; since we didnt add anything to histogramm yet, next m1_data has to start from here
                     m0_index = m0_i
                     break
             
             if m0_i == m0_data.shape[0] -1:
-                return m0_tmp_i, m1_index
+                return m0_prev_i, m1_index #m0_data finished, next m0_data stream must start from loop index where we started before end of data was reached
+
+            
+            m1_buf_i = 0 #reset buffer index to overwrite entries in buffer
+            for m1_i in range(m1_index, m1_data.shape[0]): #search m1_data
                 
+                if m1_frame == m1_data[m1_i]['frame']: #as long as frames are equal, write to buffer
+                    
+                    m1_buf_col[m1_buf_i] = m1_data[m1_i]['column']
+                    m1_buf_row[m1_buf_i] = m1_data[m1_i]['row']
+                    m1_buf_i += 1
+                
+                elif m1_frame < m1_data[m1_i]['frame']: #
+                    m1_prev_i = m1_index #index we need if we reach end of m1_data; since we didnt add anything to histogramm yet, next m1_data has to start from here
+                    m1_index = m1_i
+                    break
+                    
+            if m1_i == m1_data.shape[0] - 1:
+                return m0_index, m1_prev_i #m1_data finished, next m1_data stream must start from loop index where we started before end of data was reached
+            
+            #fill histogramms
             for i in range(m0_buf_i):
                 for j in range(m1_buf_i):
                     corr_col[m0_buf_col[i]][m1_buf_col[j]] += 1 
                     corr_row[m0_buf_row[i]][m1_buf_row[j]] += 1
                     
-    return m0_index, m1_index #only occurs if incoming data has absolutely no frame numbers in common
+    return m0_index, m1_index #only occurs if incoming data streams have no frame numbers in common
