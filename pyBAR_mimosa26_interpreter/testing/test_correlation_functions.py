@@ -73,40 +73,40 @@ m0_index3b, m1_index3b = correlation_functions.correlate_mm(m1_data3, m0_data3, 
 
 
 
-if m0_index == 2 and m1_index == 2:
-    print "CORRECT:", m0_index, m1_index
-else:
-    print "BUG! m0_index/m1_index should be 2/2, is:", m0_index, m1_index
-
-if m0_index1a == 2 and m1_index1a == 0:
-    print "CORRECT:",m0_index1a, m1_index1a
-else:
-    print "BUG! m0_index/m1_index should be 2/0, is:", m0_index1a, m1_index1a
-
-if m0_index1b == 0 and m1_index1b == 0:
-    print "CORRECT:", m0_index1b, m1_index1b
-else:
-    print "BUG! m0_index/m1_index should be 0/0, is:", m0_index1b, m1_index1b
-
-if m0_index2a == 0 and m1_index2a == 3:
-    print "CORRECT:",m0_index2a, m1_index2a
-else:
-    print "BUG! m0_index/m1_index should be 0/3, is:", m0_index2a, m1_index2a
-
-if m0_index2b == 3 and m1_index2b == 0:
-    print "CORRECT:", m0_index2b, m1_index2b
-else:
-    print "BUG! m0_index/m1_index should be 3/0, is:", m0_index2b, m1_index2b
-    
-if m0_index3a == 0 and m1_index3a == 0:
-    print "CORRECT:", m0_index3a, m1_index3a
-else:
-    print "BUG! m0_index/m1_index should be 3/0, is:", m0_index3a, m1_index3a
-
-if m0_index3b == 0 and m1_index3b == 0:
-    print "CORRECT:", m0_index3b, m1_index3b
-else:
-    print "BUG! m0_index/m1_index should be 3/0, is:", m0_index3b, m1_index3b
+# if m0_index == 2 and m1_index == 2:
+#     print "CORRECT:", m0_index, m1_index
+# else:
+#     print "BUG! m0_index/m1_index should be 2/2, is:", m0_index, m1_index
+# 
+# if m0_index1a == 2 and m1_index1a == 0:
+#     print "CORRECT:",m0_index1a, m1_index1a
+# else:
+#     print "BUG! m0_index/m1_index should be 2/0, is:", m0_index1a, m1_index1a
+# 
+# if m0_index1b == 0 and m1_index1b == 0:
+#     print "CORRECT:", m0_index1b, m1_index1b
+# else:
+#     print "BUG! m0_index/m1_index should be 0/0, is:", m0_index1b, m1_index1b
+# 
+# if m0_index2a == 0 and m1_index2a == 3:
+#     print "CORRECT:",m0_index2a, m1_index2a
+# else:
+#     print "BUG! m0_index/m1_index should be 0/3, is:", m0_index2a, m1_index2a
+# 
+# if m0_index2b == 3 and m1_index2b == 0:
+#     print "CORRECT:", m0_index2b, m1_index2b
+# else:
+#     print "BUG! m0_index/m1_index should be 3/0, is:", m0_index2b, m1_index2b
+#     
+# if m0_index3a == 0 and m1_index3a == 0:
+#     print "CORRECT:", m0_index3a, m1_index3a
+# else:
+#     print "BUG! m0_index/m1_index should be 3/0, is:", m0_index3a, m1_index3a
+# 
+# if m0_index3b == 0 and m1_index3b == 0:
+#     print "CORRECT:", m0_index3b, m1_index3b
+# else:
+#     print "BUG! m0_index/m1_index should be 3/0, is:", m0_index3b, m1_index3b
 print "FAAAAAAAAAAAST\n"
 m0_index, m1_index = correlation_functions.correlate_mm_fast(m0_data, m1_data, corr_col_mm,corr_row_mm)
 m0_index1a, m1_index1a = correlation_functions.correlate_mm_fast(m0_data1, m1_data1, corr_col_mm,corr_row_mm)
