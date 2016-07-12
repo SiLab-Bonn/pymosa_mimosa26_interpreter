@@ -185,13 +185,18 @@ def correlate_mm_fast(m0_data, m1_data, corr_col, corr_row):
                 
                 m1_frame = m1_data[m1_i]['frame']
                 
+                if m1_i == m1_data.shape[0]-1 and m0_frame == m1_frame: #if we reach end of m1_data and frame numbers should still be correlated, return and add this data to next data stream
+                    return m0_index, m1_i
+                    
                 #if frames are equal, fill histogramms
+                
                 if m0_frame == m1_frame:
                     corr_col[m0_data[m0_index]['column'], m1_data[m1_i]['column']] += 1
                     corr_row[m0_data[m0_index]['row'], m1_data[m1_i]['row']] += 1
+                    
                 else:
                     break
-                
+             
         return -1, -1 #error, should not happen since we return in outer for-loop if one of the indices is m_data.shape[0] -1 
 
     

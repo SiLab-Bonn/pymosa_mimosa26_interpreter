@@ -45,14 +45,14 @@ m1_data2 = np.array([(29123, 130515341L, 0x3253, 0x3258, 2, 35435468L, 555, 333L
                      (29123, 130515341L, 0x3255, 0x3260, 2, 35435468L, 666, 444L, 52171, 0),
                      (29123, 130515341L, 0x3253, 0x3258, 2, 35435469L, 555, 333L, 52171, 0),
                      (29123, 130515341L, 0x3253, 0x3258, 2, 35435469L, 555, 333L, 52171, 0)],m26_dtype)
-#case4a: m0_datais empty, m1_data not #case3b: other way round
+#case4a: m0_data is empty, m1_data not #case3b: other way round
 m0_data3 = np.array([],m26_dtype)
 
 m1_data3 = np.array([(29123, 130515341L, 0x3253, 0x3258, 2, 35435468L, 555, 333L, 52171, 0),
                      (29123, 130515341L, 0x3255, 0x3260, 2, 35435468L, 666, 444L, 52171, 0),
                      (29123, 130515341L, 0x3253, 0x3258, 2, 35435469L, 555, 333L, 52171, 0),
                      (29123, 130515341L, 0x3253, 0x3258, 2, 35435469L, 555, 333L, 52171, 0)],m26_dtype)
-#case 5a:
+#case 5a:m0_data skips frame number #case5b: other way round
 m0_data4 = np.array([(29123, 130515341L, 0x3253, 0x3258, 2, 35435470L, 555, 333L, 52171, 0),
                      (29123, 130515341L, 0x3255, 0x3260, 2, 35435470L, 666, 444L, 52171, 0),
                      (29123, 130515341L, 0x3253, 0x3258, 2, 35435472L, 555, 333L, 52171, 0),
@@ -154,10 +154,10 @@ if m0_index3b == 0 and m1_index3b == 0:
 else:
     print "BUG! m0_index/m1_index should be 3/0, is:", m0_index3b, m1_index3b
     
-if m0_index4a == 3 and m1_index4a == 3:
+if m0_index4a == 2 and m1_index4a == 3:
     print "CORRECT:", m0_index4a, m1_index4a
 else:
-    print "BUG! m0_index/m1_index should be 3/3, is:", m0_index4a, m1_index4a
+    print "BUG! m0_index/m1_index should be 2/3, is:", m0_index4a, m1_index4a
 
 if m0_index4b == 3 and m1_index4b == 2:
     print "CORRECT:", m0_index4b, m1_index4b
