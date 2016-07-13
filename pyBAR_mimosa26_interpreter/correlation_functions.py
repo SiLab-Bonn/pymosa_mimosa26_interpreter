@@ -78,119 +78,54 @@ def correlate_fm(fe_data, m26_data, corr_col, corr_row, dut1, dut2):
         m26_index=m26_i
                       
     return -1, -1 # error, this should not happen  
+    
 
 
-# @njit
-# def correlate_mm(m0_data, m1_data, corr_col, corr_row):
-#     #initialise variables
-#     m0_index = 0
-#     m0_prev_i = 0
-#     m1_index = 0
-#     m1_prev_i = 0
-#     m0_i = 0
-#     m1_i = 0
-#     m0_buf_i = 0
-#     m1_buf_i = 0
-#     m0_buf_col = np.zeros(1000, dtype=np.uint32)
-#     m0_buf_row = np.zeros(1000, dtype=np.uint32)
-#     m1_buf_col = np.zeros(1000, dtype=np.uint32)
-#     m1_buf_row = np.zeros(1000, dtype=np.uint32)
-#     #end of initialisation
-#                                                                             #needs to be m_data.shape[0]-1 because indices start from 0; range(m_data.shape[0]) goes from 0 to m_data.shape[0]-1
-#     while m0_index < m0_data.shape[0] - 1 and m1_index < m1_data.shape[0] - 1: #need to check both because checking for equality of frames in next if statement; if one data has no matching frames with other data we need to return corresponding indices 
-#         
-#         #get first frame numbers of both data streams
-#         m0_frame = m0_data[m0_index]['frame']
-#         m1_frame = m1_data[m1_index]['frame']
-#         
-#         #check whether frames are equal; if not, increase one of the indices m0_index or m1_index and continue until frames are equal; if no matching frames, loop terminates and returns indices
-#         if m0_frame != m1_frame: #frame number can stay the same for several increased indices since mimosa planes can have several hits per frame
-#             if m0_frame < m1_frame:
-#                 m0_index += 1
-#                 continue
-#             elif m0_frame > m1_frame: 
-#                 m1_index += 1
-#                 continue
-#                 
-#         else: #m0_frame and m1_frame are equal
-#                         
-#             m0_buf_i = 0 #reset buffer index to overwrite entries in buffer
-#             for m0_i in range(m0_index, m0_data.shape[0]): #search m0_data
-#                 
-#                 if m0_frame == m0_data[m0_i]['frame']: #as long as frames are equal, write to buffer
-#                     
-#                     m0_buf_col[m0_buf_i] = m0_data[m0_i]['column']
-#                     m0_buf_row[m0_buf_i] = m0_data[m0_i]['row']
-#                     m0_buf_i += 1
-#                 
-#                 elif m0_frame < m0_data[m0_i]['frame']:
-#                     m0_prev_i = m0_index #index we need if we reach end of m0_data; since we didnt add anything to histogramm yet, next m1_data has to start from here
-#                     m0_index = m0_i
-#                     break
-#             
-#             if m0_i == m0_data.shape[0] -1:
-#                 return m0_prev_i, m1_index #m0_data finished, next m0_data stream must start from loop index where we started before end of data was reached
-# 
-#             
-#             m1_buf_i = 0 #reset buffer index to overwrite entries in buffer
-#             for m1_i in range(m1_index, m1_data.shape[0]): #search m1_data
-#                 
-#                 if m1_frame == m1_data[m1_i]['frame']: #as long as frames are equal, write to buffer
-#                     
-#                     m1_buf_col[m1_buf_i] = m1_data[m1_i]['column']
-#                     m1_buf_row[m1_buf_i] = m1_data[m1_i]['row']
-#                     m1_buf_i += 1
-#                 
-#                 elif m1_frame < m1_data[m1_i]['frame']: #
-#                     m1_prev_i = m1_index #index we need if we reach end of m1_data; since we didnt add anything to histogramm yet, next m1_data has to start from here
-#                     m1_index = m1_i
-#                     break
-#                     
-#             if m1_i == m1_data.shape[0] - 1:
-#                 return m0_index, m1_prev_i #m1_data finished, next m1_data stream must start from loop index where we started before end of data was reached
-#             
-#             #fill histogramms
-#             for i in range(m0_buf_i):
-#                 for j in range(m1_buf_i):
-#                     corr_col[m0_buf_col[i]][m1_buf_col[j]] += 1 
-#                     corr_row[m0_buf_row[i]][m1_buf_row[j]] += 1
-#                     
-#     return m0_index, m1_index #only occurs if incoming data streams have no frame numbers in common
-    
-    
-    
 @njit
 def correlate_mm(m0_data, m1_data, corr_col, corr_row):
-    #variables
+    '''
+    Main function to correlate mimosa to mimosa data. Correlates mimosa data on frame number, where all permutations are concidered.
+    Parameters
+    ----------
+    m0_data: mimosa hit data of type 'numpy.ndarray' with data type of mimosa data
+    m1_data: mimosa hit data of type 'numpy.ndarray' with data type of mimosa data
+    corr_col: array to store column histogramm of type 'numpy.ndarray' with the correct shape=(column,column)
+    corr_row: array to store row histogramm of type 'numpy.ndarray' with the correct shape=(row,row)
+    
+    Returns
+    -------
+    m0_index: int index of m0_data where correlation stops. Data in data buffer below that index will be deleted, above will be kept. Next incoming data will be added to data buffer (dict), starting from m0_index (sth. like buffer[m0] = buffer[m0][m0_index: ].append(m0_data_new) )
+    m1_index: int index of m1_data where correlation stops. Data in data buffer below that index will be deleted, above will be kept. Next incoming data will be added to data buffer (dict), starting from m1_index (sth. like buffer[m1] = buffer[m1][m1_index: ].append(m1_data_new) )
+    '''
+    
+    #declare variables
     m0_index = 0
     m1_index = 0
     #end
     
-    if m0_data.shape[0] == 0 or m1_data.shape[0] == 0:
+    if m0_data.shape[0] == 0 or m1_data.shape[0] == 0: # if one mimosa data is empty, return and keep both data in buffer
         return m0_index, m1_index
     
     else:
         
-        for m0_index in range(m0_data.shape[0]):
+        for m0_index in range(m0_data.shape[0]): # go trough first mimosa data m0_data
             
-            m0_frame = m0_data[m0_index]['frame']
+            m0_frame = m0_data[m0_index]['frame'] # get the frame number corresponding to current m0_index
 
-            while m1_index < m1_data.shape[0] - 1 and m1_data[m1_index]['frame'] < m0_frame: #keep frame up with outer frame
+            while m1_index < m1_data.shape[0] - 1 and m1_data[m1_index]['frame'] < m0_frame: #keep m1_frame up with outer m0_frame
                 m1_index += 1
             
             if m0_index == m0_data.shape[0] - 1 or m1_index == m1_data.shape[0] - 1: #return here if on of the data streams ends, so no correlation for current indices; add this data to next data and then correlate 
                 return m0_index, m1_index
             
-            for m1_i in range(m1_index, m1_data.shape[0]):
+            for m1_i in range(m1_index, m1_data.shape[0]): # go trough second mimosa data m1_data, start from m1_index which was kept up so that you start from same frame
                 
-                m1_frame = m1_data[m1_i]['frame']
+                m1_frame = m1_data[m1_i]['frame'] # get the frame number corresponding to current m1_i
                 
-                if m1_i == m1_data.shape[0]-1 and m0_frame == m1_frame: #if we reach end of m1_data and frame numbers should still be correlated, return and add this data to next data stream
+                if m1_i == m1_data.shape[0]-1 and m0_frame == m1_frame: #if we reach end of m1_data and frame numbers are equal, return and add this data to next data stream; we dont know if next data's frames need to be correlated to this data's last frame
                     return m0_index, m1_i
-                    
-                #if frames are equal, fill histogramms
                 
-                if m0_frame == m1_frame:
+                if m0_frame == m1_frame: # if frames are equal, fill histogramms
                     corr_col[m0_data[m0_index]['column'], m1_data[m1_i]['column']] += 1
                     corr_row[m0_data[m0_index]['row'], m1_data[m1_i]['row']] += 1
                     
@@ -202,8 +137,19 @@ def correlate_mm(m0_data, m1_data, corr_col, corr_row):
  
 @njit
 def correlate_ff(f0_data, corr_col, corr_row): #f0_data == f1_data for m26 telescope, just to see something when you select both DUTs as FEI4
-
-    for i in range(f0_data.shape[0]):
+    '''
+    Main function to correlate fei4 data to itself. Takes only one fei4 data input, because in m26 telescope we only have one fe reference plane. Just loops over the data and adds to histogramm
+    Parameters
+    ----------
+    f0_data: fe hit data of type 'numpy.ndarray' with data type of fei4 data, will be correlated to itself
+    corr_col: array to store column histogramm of type 'numpy.ndarray' with the correct shape=(column,column)
+    corr_row: array to store row histogramm of type 'numpy.ndarray' with the correct shape=(row,row)
+    
+    Returns
+    -------
+    int which is equal to the length of input data. Since data is equal, everything can be correlated and nothing has to stay in data buffer
+    '''
+    for i in range(f0_data.shape[0]): # go trough fei4 data and immidiately histogramm
         corr_col[f0_data[i]['column']][f0_data[i]['column']] += 1 
         corr_row[f0_data[i]['row']][f0_data[i]['row']] += 1
     return f0_data.shape[0] - 1
