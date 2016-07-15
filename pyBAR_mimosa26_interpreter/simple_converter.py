@@ -108,13 +108,12 @@ def _m26_converter(raw_data, plane, hits, mframe, dlen, idx, numstatus, row,ovf,
                             hit_buf[hit_buf_i]['row'] = row
                             hit_buf_i = hit_buf_i + 1
         elif(0x80000000 & raw_d == 0x80000000): #TLU
-            tlu_buf[tlu_buf_i]["trigger_number"] = raw_d 
+            tlu_buf[tlu_buf_i]["trigger_number"] = raw_d & 0x7FFFFFFF 
             tlu_buf[tlu_buf_i]["frame"] = mframe
             tlu_buf[tlu_buf_i]["event_number"] = event_number
             tlu_buf_i= tlu_buf_i+1
             event_number=event_number+1
     return hit_i,raw_i,0
-
 
 def m26_converter(fin,fout,plane):
     start=0
@@ -140,7 +139,7 @@ def m26_converter(fin,fout,plane):
         end=int(len(tb.root.raw_data))
         print "fout:",fout,"number of data:",end
         t0 = time.time()
-        hit = np.empty(n, dtype=hit_dtype)
+        hit = np.empty(2*n, dtype=hit_dtype)
         
         with tables.open_file(fout, 'w') as out_file_h5:
             description = np.zeros((1, ), dtype=hit_dtype).dtype
@@ -150,7 +149,6 @@ def m26_converter(fin,fout,plane):
                         title='hit_data')
             while True:
                 tmpend=min(start+n,end)
-                tlu_buf_i=0
                 hit_i,raw_i,err= _m26_converter(tb.root.raw_data[start:tmpend], plane, hits, mframe, dlen, idx, numstatus,row,ovf,\
                                                    err, tlu_buf,tlu_buf_i,hit_buf,hit_buf_i,event_number,debug)
                 t1=time.time()-t0
@@ -183,10 +181,98 @@ def m26_converter(fin,fout,plane):
                 start=start+raw_i+1
                 if start>=end:
                     break
+aligned_dtype = np.dtype([('event_number', '<i8'), 
+                      ('column', '<u2'), ('row', '<u4'),('charge', '<u2')])
+@njit
+def _align_event_number(fe_hits,m26_hits,hits,debug):
+    hit_i=0
+    m26_i=0
+    for fe_i in range(fe_hits.shape[0]):
+        fe_trig=fe_hits[fe_i]["trigger_number"] & 0x7FFF
+        while m26_i < m26_hits.shape[0]:
+           #print fe_i,m26_i,fe_hits[fe_i]["event_number"],m26_hits[m26_i]["event_number"],
+           #print hex(fe_hits[fe_i]["trigger_number"]),hex(m26_hits[m26_i]["trigger_number"])
+           m26_trig=m26_hits[m26_i]["trigger_number"] & 0x7FFF
+           if (m26_trig-fe_trig) & 0x4000 == 0x4000:
+               m26_i=m26_i+1
+           elif m26_hits[m26_i]["trigger_number"]==fe_hits[fe_i]["trigger_number"]:
+               hits[hit_i]["event_number"]=fe_hits[fe_i]["event_number"]
+               hits[hit_i]["column"]=m26_hits[m26_i]["column"]
+               hits[hit_i]["row"]=m26_hits[m26_i]["row"]
+               hits[hit_i]["charge"]=1
+               hit_i=hit_i+1
+               m26_i=m26_i+1
+           elif m26_trig==fe_trig and m26_hits[m26_i]["trigger_number"]!=fe_hits[fe_i]["trigger_number"]:
+               return fe_i,m26_i,hit_i,4
+           else: # m26_trig > fe_trig
+               break
+        if m26_i == m26_hits.shape[0]:
+           if hit_i==0:
+               #print "ev",fe_hits[0]["event_number"],m26_hits[0]["event_number"]
+               #print "trig",hex(fe_hits[0]["trigger_number"]),hex(m26_hits[0]["trigger_number"])
+               return fe_i,m26_i,hit_i,1
+           return fe_i,m26_i,hit_i,0
+    return fe_i+1, m26_i,hit_i,3
+
+def align_event_number(fin,fe_fin,fout):
+    m26_start=0
+    fe_start=0
+    n = 10000000
+
+    debug=1
+
+    m26_tb=tables.open_file(fin)
+    m26_end=int(len(m26_tb.root.Hits))
+    print "m26",m26_end
+    fe_tb=tables.open_file(fe_fin)
+    fe_end=int(len(fe_tb.root.Hits))
+    print "fe",fe_end
+    with tables.open_file(fout,'w') as out_tb:
+        description = np.zeros((1, ), dtype=aligned_dtype).dtype
+        hit_table = out_tb.create_table(out_tb.root, 
+                    name='Hits', 
+                    description=description, 
+                    title='hit_data')
+        t0 = time.time()
+        hits = np.empty(n, dtype=aligned_dtype)
+
+        while True:
+           fe_tmpend=min(fe_start+n/10,fe_end)
+           m26_tmpend=min(m26_start+n,m26_end)
+           fe_i,m26_i,hit_i,err= _align_event_number(fe_tb.root.Hits[fe_start:fe_tmpend],
+                                                  m26_tb.root.Hits[m26_start:m26_tmpend],
+                                                  hits,debug)
+           t1=time.time()-t0
+           if err==0:
+               print fe_start,m26_start,fe_i,m26_i,hit_i,err,"---%.3f%% %.3fs(%.3fus/dat)"%((m26_tmpend*100.0)/m26_end, t1, (t1)/m26_tmpend*1.0E6)
+           else:
+               print "error",hit_i,fe_i,m26_i,"ERROR=",err
+               m26_i=m26_i+1
+               fe_i=fe_i+1
+               return
+           hit_table.append(hits[:hit_i])
+           hit_table.flush()
+           fe_start=fe_start+fe_i
+           m26_start=m26_start+m26_i
+           if fe_start>=fe_end or m26_start>=m26_end:
+               break
+    m26_tb.close()
+    fe_tb.close()
+
 if __name__=="__main__":
     import os,sys
+    debug=0
     fin=sys.argv[1]
     for i in range(1,7):
-        fout=os.path.join(fin[:-3]+"_aligned%d.h5"%i)
-        m26_converter(fin,fout,i)
+        ftmp=os.path.join(fin[:-3]+"_event_aligned%d.h5"%i)
+        m26_converter(fin,ftmp,i)
+
+        fout=os.path.join(fin[:-3]+"_aligned%d.h5")
+        fe_fin=os.path.join(fin[:-3]+"_event_aligned.h5")
+        align_event_number(ftmp,fe_fin,fout)
+        if debug==0:
+            os.remove(ftmp)
+    if debug==0:
+        os.remove(fe_fin)
+
 
