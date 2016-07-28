@@ -152,6 +152,7 @@ def _m26_interpreter(raw, dat, idx,mframe,timestamp,dlen,numstatus,row,tlu,lv1,o
                     dat[hit].val2 = felv1
                     hit=hit+1
                 else:
+                    #pass
                     return dat[:hit],raw_i,6 ## FEI4_TOT1_ERROR
                 fetot=(raw_d & 0xF)
                 ferow=ferow+1
@@ -188,7 +189,7 @@ def m26_interpreter(fin,fout):
 
     with tables.open_file(fin) as tb:
         end=int(len(tb.root.raw_data))
-        print "output",fout,"n of data",end
+        print "n of raw data",end
         t0 = time.time()
         dat = np.empty(n, dtype=hit_dtype)
         dat = dat.view(np.recarray)
@@ -201,21 +202,22 @@ def m26_interpreter(fin,fout):
                     print start,raw_i,len(hit_dat),ovf,"---%.3f%% %.3fs(%.3fus/dat)"%((tmpend*100.0)/end, t1, (t1)/tmpend*1.0E6)
                 else:
                     if err==1:
-                        print "MIMOSA_ROW_ERROR",
-                    #elif err==2:
-                    #    print "MIMOSA_COL_ERROR",
+                        print raw_i,"MIMOSA_ROW_ERROR",
+                    elif err==2:
+                        print raw_i,"MIMOSA_COL_ERROR",
                     elif err==3:
-                        print "MIMOSA_DLEN_ERROR",
+                        print raw_i,"MIMOSA_DLEN_ERROR",
                     elif err==4:
-                        print "MIMOSA_TAILER_ERROR",
+                        print raw_i,"MIMOSA_TAILER_ERROR",
                     elif err==5:
-                        print "MIMOSA_TAILER2_ERROR",
+                        print raw_i,"MIMOSA_TAILER2_ERROR",
                     elif err==6:
-                        print "FEI4_TOT1_ERROR",
+                        print raw_i,"FEI4_TOT1_ERROR",
                     elif err==7:
-                        print "FEI4_TOT2_ERROR",
+                        print raw_i,"FEI4_TOT2_ERROR",
                     elif err==8:
-                        print "MIMOSA_OVF_WARN",
+                        print raw_i,"MIMOSA_OVF_WARN",
+                    raw_i=raw_i+1
                     #print err,start,raw_i,hex(tb.root.raw_data[start+raw_i])
                     #for j in range(-100,100,1):
                     #    print "ERROR %4d"%j,start+raw_i+j,hex(tb.root.raw_data[start+raw_i+j])
@@ -235,7 +237,7 @@ def m26_interpreter(fin,fout):
 if __name__=="__main__":
     import os,sys
     fin=sys.argv[1]
-    fout=fin+"hits.h5"
+    fout=fin[:-3]+"_hits.h5"
     m26_interpreter(fin,fout)
             
 

@@ -5,8 +5,8 @@ import numpy as np
 import tables
 
 hit_dtype = np.dtype([('event_number', '<i8'),('trigger_number', '<u4'), 
-                      ('column', '<u2'), ('row', '<u4'),('frame', '<u4')])
-hit_buf_dtype = np.dtype([('frame', '<u4'),('column', '<u2'), ('row', '<u4')])
+                      ('x', '<u2'), ('y', '<u2'),('frame', '<u4')])
+hit_buf_dtype = np.dtype([('frame', '<u4'),('x', '<u2'), ('y', '<u2')])
 tlu_buf_dtype = np.dtype([('event_number', '<i8'),('trigger_number', '<u4'), ('frame', '<u4')])
 
 @njit
@@ -61,8 +61,8 @@ def _m26_converter(raw_data, plane, hits, mframe, dlen, idx, numstatus, row,ovf,
                                 if hit_buf[i]['frame']==mframe-1 or hit_buf[i]['frame']==mframe:
                                     hits[hit_i]["trigger_number"] = tlu_buf[j]["trigger_number"]
                                     hits[hit_i]["event_number"] = tlu_buf[j]["event_number"]
-                                    hits[hit_i]['column'] = hit_buf[i]['column']
-                                    hits[hit_i]['row'] = hit_buf[i]['row']
+                                    hits[hit_i]['x'] = hit_buf[i]['x']
+                                    hits[hit_i]['y'] = hit_buf[i]['y']
                                     hits[hit_i]['frame']=hit_buf[i]['frame']
                                     hit_i=hit_i+1
                                 #else :#do nothing        
@@ -76,8 +76,8 @@ def _m26_converter(raw_data, plane, hits, mframe, dlen, idx, numstatus, row,ovf,
                     for i in range(hit_buf_i):
                         if hit_buf[i]['frame']==mframe:
                             hit_buf[jj]['frame']=hit_buf[i]['frame']
-                            hit_buf[jj]['row']=hit_buf[i]['row']
-                            hit_buf[jj]['column']=hit_buf[i]['column']
+                            hit_buf[jj]['y']=hit_buf[i]['y']
+                            hit_buf[jj]['x']=hit_buf[i]['x']
                             hit_buf[jj]['frame']=hit_buf[i]['frame']
                             jj=jj+1
                     hit_buf_i=jj
@@ -92,7 +92,7 @@ def _m26_converter(raw_data, plane, hits, mframe, dlen, idx, numstatus, row,ovf,
                             row = (raw_d >> 4) & 0x7FF
                         if raw_d & 0x8000==0x8000:
                             ovf=ovf+1
-                            numstatus == 0
+                            numstatus = 0
                             return hit_i,raw_i,8
                         if row>576:
                             return hit_i,raw_i,1
@@ -104,8 +104,8 @@ def _m26_converter(raw_data, plane, hits, mframe, dlen, idx, numstatus, row,ovf,
                             return hit_i,raw_i,2
                         for k in range(num + 1):
                             hit_buf[hit_buf_i]['frame'] = mframe
-                            hit_buf[hit_buf_i]['column'] = col + k
-                            hit_buf[hit_buf_i]['row'] = row
+                            hit_buf[hit_buf_i]['x'] = col + k
+                            hit_buf[hit_buf_i]['y'] = row
                             hit_buf_i = hit_buf_i + 1
         elif(0x80000000 & raw_d == 0x80000000): #TLU
             tlu_buf[tlu_buf_i]["trigger_number"] = raw_d & 0x7FFFFFFF 
@@ -155,36 +155,37 @@ def m26_converter(fin,fout,plane):
                 if err==0:
                     print start,raw_i,hit_i,err,"---%.3f%% %.3fs(%.3fus/dat)"%((tmpend*100.0)/end, t1, (t1)/tmpend*1.0E6)
                     time.sleep(1)
-                else:
+                else: ## Fix error code
                     if err==1:
-                        print "MIMOSA_ROW_ERROR",
+                        err= "MIMOSA_ROW_ERROR",
                     elif err==2:
-                        print "MIMOSA_COL_ERROR",
+                        err= "MIMOSA_COL_ERROR",
                     elif err==3:
-                        print "MIMOSA_DLEN_ERROR",
+                        err= "MIMOSA_DLEN_ERROR",
                     elif err==4:
-                        print "MIMOSA_TAILER_ERROR",
+                        err= "MIMOSA_TAILER_ERROR",
                     elif err==5:
-                        print "MIMOSA_TAILER2_ERROR",
+                        err= "MIMOSA_TAILER2_ERROR",
                     elif err==6:
-                        print "FEI4_TOT1_ERROR",
+                        err= "FEI4_TOT1_ERROR",
                     elif err==7:
-                        print "FEI4_TOT2_ERROR",
+                        err= "FEI4_TOT2_ERROR",
                     elif err==8:
-                        print "MIMOSA_OVF_WARN",
+                        err= "MIMOSA_OVF_WARN",
                     print err,start,raw_i,hex(tb.root.raw_data[start+raw_i])
-                    for j in range(-100,100,1):
-                        print "ERROR %4d"%j,start+raw_i+j,hex(tb.root.raw_data[start+raw_i+j])
-                    break
+                    raw_i=raw_i+1
+                    #for j in range(-100,100,1):
+                    #    print "ERROR %4d"%j,start+raw_i+j,hex(tb.root.raw_data[start+raw_i+j])
+                    #break
                 hit_table.append(hits[:hit_i])
                 hit_table.flush()
                 start=start+raw_i+1
                 if start>=end:
                     break
-aligned_dtype = np.dtype([('event_number', '<i8'), 
-                      ('column', '<u2'), ('row', '<u4'),('charge', '<u2')])
+aligned_dtype = np.dtype([('event_number', '<i8'), ('frame','u2'),
+                      ('column', '<u2'), ('row', '<u2'),('charge', '<u2')])
 @njit
-def _align_event_number(fe_hits,m26_hits,hits,debug):
+def _align_event_number(fe_hits,m26_hits,hits,tr,debug):
     hit_i=0
     m26_i=0
     for fe_i in range(fe_hits.shape[0]):
@@ -197,9 +198,14 @@ def _align_event_number(fe_hits,m26_hits,hits,debug):
                m26_i=m26_i+1
            elif m26_hits[m26_i]["trigger_number"]==fe_hits[fe_i]["trigger_number"]:
                hits[hit_i]["event_number"]=fe_hits[fe_i]["event_number"]
-               hits[hit_i]["column"]=m26_hits[m26_i]["column"]
-               hits[hit_i]["row"]=m26_hits[m26_i]["row"]
-               hits[hit_i]["charge"]=1
+               if tr==True:
+                   hits[hit_i]["row"]=m26_hits[m26_i]["y"]
+                   hits[hit_i]["column"]=m26_hits[m26_i]["x"]
+               else:
+                   hits[hit_i]["row"]=m26_hits[m26_i]["x"]
+                   hits[hit_i]["column"]=m26_hits[m26_i]["y"]
+               hits[hit_i]['frame']=0
+               hits[hit_i]['charge']=1
                hit_i=hit_i+1
                m26_i=m26_i+1
            elif m26_trig==fe_trig and m26_hits[m26_i]["trigger_number"]!=fe_hits[fe_i]["trigger_number"]:
@@ -214,16 +220,16 @@ def _align_event_number(fe_hits,m26_hits,hits,debug):
            return fe_i,m26_i,hit_i,0
     return fe_i+1, m26_i,hit_i,3
 
-def align_event_number(fin,fe_fin,fout):
+def align_event_number(fin,fe_fin,fout,tr=False):
     m26_start=0
     fe_start=0
     n = 10000000
 
     debug=1
-
+    print fout
     m26_tb=tables.open_file(fin)
     m26_end=int(len(m26_tb.root.Hits))
-    print "m26",m26_end
+    print "m26",m26_end,
     fe_tb=tables.open_file(fe_fin)
     fe_end=int(len(fe_tb.root.Hits))
     print "fe",fe_end
@@ -241,7 +247,7 @@ def align_event_number(fin,fe_fin,fout):
            m26_tmpend=min(m26_start+n,m26_end)
            fe_i,m26_i,hit_i,err= _align_event_number(fe_tb.root.Hits[fe_start:fe_tmpend],
                                                   m26_tb.root.Hits[m26_start:m26_tmpend],
-                                                  hits,debug)
+                                                  hits,tr,debug)
            t1=time.time()-t0
            if err==0:
                print fe_start,m26_start,fe_i,m26_i,hit_i,err,"---%.3f%% %.3fs(%.3fus/dat)"%((m26_tmpend*100.0)/m26_end, t1, (t1)/m26_tmpend*1.0E6)
@@ -261,15 +267,22 @@ def align_event_number(fin,fe_fin,fout):
 
 if __name__=="__main__":
     import os,sys
+
     debug=0
-    fin=sys.argv[1]
+    tr=False
+    if len(sys.argv)<2:
+       print "simple_converter.py [-tr] <input file>"
+    fin=sys.argv[-1]
+    if "-tr" in sys.argv[1:-1]:
+        tr=True
+      
     for i in range(1,7):
         ftmp=os.path.join(fin[:-3]+"_event_aligned%d.h5"%i)
         m26_converter(fin,ftmp,i)
 
-        fout=os.path.join(fin[:-3]+"_aligned%d.h5")
+        fout=os.path.join(fin[:-3]+"_aligned%d.h5"%i)
         fe_fin=os.path.join(fin[:-3]+"_event_aligned.h5")
-        align_event_number(ftmp,fe_fin,fout)
+        align_event_number(ftmp,fe_fin,fout,tr=tr)
         if debug==0:
             os.remove(ftmp)
     if debug==0:
