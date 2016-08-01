@@ -103,7 +103,7 @@ def _m26_converter(raw_data, plane, hits, mframe, dlen, idx, numstatus, row,ovf,
                         col = (raw_d >> 2) & 0x7FF
                         if col==0x5C0:
                             return hit_i,raw_i,9 ##MIMOSA_COL_OVF?_WARN
-                        elif col>=1152:
+                        elif col>1152:
                             return hit_i,raw_i,2 ##MIMOSA_COL_ERROR
                         for k in range(num + 1):
                             hit_buf[hit_buf_i]['frame'] = mframe
@@ -210,11 +210,11 @@ def _align_event_number(fe_hits,m26_hits,hits,tr,debug):
            elif m26_hits[m26_i]["trigger_number"]==fe_hits[fe_i]["trigger_number"]:
                hits[hit_i]["event_number"]=fe_hits[fe_i]["event_number"]
                if tr==True:
-                   hits[hit_i]["row"]=m26_hits[m26_i]["y"]
-                   hits[hit_i]["column"]=m26_hits[m26_i]["x"]
+                   hits[hit_i]["row"]=m26_hits[m26_i]["x"]+1
+                   hits[hit_i]["column"]=m26_hits[m26_i]["y"]+1
                else:
-                   hits[hit_i]["row"]=m26_hits[m26_i]["x"]
-                   hits[hit_i]["column"]=m26_hits[m26_i]["y"]
+                   hits[hit_i]["row"]=m26_hits[m26_i]["y"]+1
+                   hits[hit_i]["column"]=m26_hits[m26_i]["x"]+1
                hits[hit_i]['frame']=0
                hits[hit_i]['charge']=1
                hit_i=hit_i+1

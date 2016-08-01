@@ -12,11 +12,11 @@ debug=0
 tr=False
 ow=False
 if len(sys.argv)<2:
-   print "simple_converter.py [options] <input file>"
-   print "options: -tr    transpose col and row"
+   print "ex_simple_converter.py [options] <input file>"
+   print "options: -tr    transpose col and row of M26"
    print "         -ow    re-convert and overwrite output files"
    print "         -debug keep ntermidiate files"
-
+   sys.exit()
 if os.path.isdir(sys.argv[-1]):
     flist=[]
     flist_all=os.listdir(sys.argv[-1])
