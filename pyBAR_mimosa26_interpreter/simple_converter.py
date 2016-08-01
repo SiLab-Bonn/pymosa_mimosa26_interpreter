@@ -193,7 +193,7 @@ def m26_converter(fin,fout,plane):
                 start=start+raw_i+1
                 if start>=end:
                     break
-aligned_dtype = np.dtype([('event_number', '<i8'), ('frame','u2'),
+aligned_dtype = np.dtype([('event_number', '<i8'), ('frame','u1'),
                       ('column', '<u2'), ('row', '<u2'),('charge', '<u2')])
 @njit
 def _align_event_number(fe_hits,m26_hits,hits,tr,debug):
