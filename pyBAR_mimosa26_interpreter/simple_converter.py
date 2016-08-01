@@ -18,13 +18,14 @@ def _m26_converter(raw_data, plane, hits, mframe, dlen, idx, numstatus, row,ovf,
     for raw_i in range(raw_data.shape[0]):
         raw_d = raw_data[raw_i]
         if (0xFFF00000 & raw_d) == (0x20000000 |(plane <<20)): #M26
+            #print raw_i,hex(raw_d),idx
             if (0x00020000 & raw_d == 0x20000):
                 idx = -1
                 #print raw_i,hex(raw_d),mid,idx[mid],"reset frame data because of data loss"
             elif (0x000F0000 & raw_d == 0x10000):
                 #timestamp[plane] = raw_d & 0xFFFF
                 idx = 0
-                #print raw_i,hex(raw_d),mid,idx[mid],"frame start"
+                #print raw_i,hex(raw_d),"frame start"
             elif idx == -1:
                 #print raw_i,hex(raw_d),mid,idx[mid],"trash"
                 pass
@@ -38,7 +39,7 @@ def _m26_converter(raw_data, plane, hits, mframe, dlen, idx, numstatus, row,ovf,
                     mframe = (0x0000FFFF & raw_d)
                 elif idx == 3:
                     mframe = (0x0000FFFF & raw_d) << 16 | mframe
-                    #print raw_i,hex(raw_d),mid,idx[mid],"mframe", mframe[plane]
+                    #print raw_i,hex(raw_d),idx,"mframe", mframe
                 elif idx == 4:
                     dlen = (raw_d & 0x0000FFFF) * 2
                     #print raw_i,hex(raw_d),mid,idx[mid],"dlen", dlen[mid]
@@ -100,8 +101,10 @@ def _m26_converter(raw_data, plane, hits, mframe, dlen, idx, numstatus, row,ovf,
                         numstatus = numstatus - 1
                         num = (raw_d) & 0x3
                         col = (raw_d >> 2) & 0x7FF
-                        if col>=1152:
-                            return hit_i,raw_i,2
+                        if col==0x5C0:
+                            return hit_i,raw_i,9 ##MIMOSA_COL_OVF?_WARN
+                        elif col>=1152:
+                            return hit_i,raw_i,2 ##MIMOSA_COL_ERROR
                         for k in range(num + 1):
                             hit_buf[hit_buf_i]['frame'] = mframe
                             hit_buf[hit_buf_i]['x'] = col + k
@@ -111,8 +114,12 @@ def _m26_converter(raw_data, plane, hits, mframe, dlen, idx, numstatus, row,ovf,
             tlu_buf[tlu_buf_i]["trigger_number"] = raw_d & 0x7FFFFFFF 
             tlu_buf[tlu_buf_i]["frame"] = mframe
             tlu_buf[tlu_buf_i]["event_number"] = event_number
+            #rint raw_i,hex(raw_d),"tlu",mframe, raw_d & 0x0000FFFF ,event_number
             tlu_buf_i= tlu_buf_i+1
+            if tlu_buf_i==tlu_buf.shape[0]:
+                return hit_i,raw_i,10  ##TLU_BUF_OVF_WANNING
             event_number=event_number+1
+
     return hit_i,raw_i,0
 
 def m26_converter(fin,fout,plane):
@@ -154,26 +161,30 @@ def m26_converter(fin,fout,plane):
                 t1=time.time()-t0
                 if err==0:
                     print start,raw_i,hit_i,err,"---%.3f%% %.3fs(%.3fus/dat)"%((tmpend*100.0)/end, t1, (t1)/tmpend*1.0E6)
-                    time.sleep(1)
                 else: ## Fix error code
                     if err==1:
-                        err= "MIMOSA_ROW_ERROR",
+                        err_str= "MIMOSA_ROW_ERROR",
                     elif err==2:
-                        err= "MIMOSA_COL_ERROR",
+                        err_str= "MIMOSA_COL_ERROR",
                     elif err==3:
-                        err= "MIMOSA_DLEN_ERROR",
+                        err_str= "MIMOSA_DLEN_ERROR",
                     elif err==4:
-                        err= "MIMOSA_TAILER_ERROR",
+                        err_str= "MIMOSA_TAILER_ERROR",
                     elif err==5:
-                        err= "MIMOSA_TAILER2_ERROR",
+                        err_str= "MIMOSA_TAILER2_ERROR",
                     elif err==6:
-                        err= "FEI4_TOT1_ERROR",
+                        err_str= "FEI4_TOT1_ERROR",
                     elif err==7:
-                        err= "FEI4_TOT2_ERROR",
+                        err_str= "FEI4_TOT2_ERROR",
                     elif err==8:
-                        err= "MIMOSA_OVF_WARN",
-                    print err,start,raw_i,hex(tb.root.raw_data[start+raw_i])
-                    raw_i=raw_i+1
+                        err_str= "MIMOSA_OVF_WARN",
+                    elif err==9:
+                        err_str= "MIMOSA_COL_OVF?_WARN",
+                    elif err==10:
+                        err_str= "TLU_BUF_OVF_WANNING",
+                        tlu_buf_i=125
+                        tlu_buf[:125]=tlu_buf[-125:]
+                    print err_str,start,raw_i,hex(tb.root.raw_data[start+raw_i])
                     #for j in range(-100,100,1):
                     #    print "ERROR %4d"%j,start+raw_i+j,hex(tb.root.raw_data[start+raw_i+j])
                     #break
@@ -273,7 +284,7 @@ if __name__=="__main__":
     if len(sys.argv)<2:
        print "simple_converter.py [-tr] <input file>"
     fin=sys.argv[-1]
-    if "-tr" in sys.argv[1:-1]:
+    if "-tr" in sys.argv:
         tr=True
       
     for i in range(1,7):
