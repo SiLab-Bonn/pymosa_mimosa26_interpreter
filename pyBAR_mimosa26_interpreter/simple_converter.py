@@ -11,7 +11,7 @@ tlu_buf_dtype = np.dtype([('event_number', '<i8'),('trigger_number', '<u4'), ('f
 
 @njit
 def _m26_converter(raw_data, plane, hits, mframe, dlen, idx, numstatus, row,ovf,\
-               err, tlu_buf,tlu_buf_i,hit_buf,hit_buf_i,event_number,debug):
+                   tlu_buf,tlu_buf_i,hit_buf,hit_buf_i,event_number,debug):
     hit_i = 0
     jj=0
 
@@ -45,15 +45,21 @@ def _m26_converter(raw_data, plane, hits, mframe, dlen, idx, numstatus, row,ovf,
                     #print raw_i,hex(raw_d),mid,idx[mid],"dlen", dlen[mid]
                 elif idx == 5:
                     if dlen!=(raw_d & 0x0000FFFF) * 2:
-                        return hit_i,raw_i,3 ##MIMOSA_DLEN_ERROR
+                        return hit_i,raw_i,3, mframe, dlen, idx, numstatus, row,ovf,\
+                               tlu_buf,tlu_buf_i,hit_buf,hit_buf_i,event_number,debug
+ ##MIMOSA_DLEN_ERROR
                 elif idx == 6 + dlen:
                     if raw_d & 0xFFFF != 0xaa50: 
-                        return hit_i,raw_i,4 ##MIMOSA_TAILER_ERROR
+                        return hit_i,raw_i,4, mframe, dlen, idx, numstatus, row,ovf,\
+                               tlu_buf,tlu_buf_i,hit_buf,hit_buf_i,event_number,debug
+ ##MIMOSA_TAILER_ERROR
                 elif idx == 7 + dlen:  # Last word is frame tailer low word
                     dlen = -1
                     numstatus = 0
                     if raw_d & 0xFFFF != (0xaa50 | plane): 
-                        return hit_i,raw_i,5  ##MIMOSA_TAILER2_ERROR
+                        return hit_i,raw_i,5,mframe, dlen, idx, numstatus, row,ovf,\
+                               tlu_buf,tlu_buf_i,hit_buf,hit_buf_i,event_number,debug
+  ##MIMOSA_TAILER2_ERROR
                     ######## copy to hits
                     jj=0
                     for j in range(tlu_buf_i):
@@ -94,17 +100,24 @@ def _m26_converter(raw_data, plane, hits, mframe, dlen, idx, numstatus, row,ovf,
                         if raw_d & 0x8000==0x8000:
                             ovf=ovf+1
                             numstatus = 0
-                            return hit_i,raw_i,8
+                            return hit_i,raw_i,8, mframe, dlen, idx, numstatus, row,ovf,\
+                                   tlu_buf,tlu_buf_i,hit_buf,hit_buf_i,event_number,debug
+
                         if row>576:
-                            return hit_i,raw_i,1
+                            return hit_i,raw_i,1, mframe, dlen, idx, numstatus, row,ovf,\
+                                   tlu_buf,tlu_buf_i,hit_buf,hit_buf_i,event_number,debug
                     else:
                         numstatus = numstatus - 1
                         num = (raw_d) & 0x3
                         col = (raw_d >> 2) & 0x7FF
                         if col==0x5C0:
-                            return hit_i,raw_i,9 ##MIMOSA_COL_OVF?_WARN
-                        elif col>1152:
-                            return hit_i,raw_i,2 ##MIMOSA_COL_ERROR
+                            return hit_i,raw_i,9, mframe, dlen, idx, numstatus, row,ovf,\
+                                   tlu_buf,tlu_buf_i,hit_buf,hit_buf_i,event_number,debug
+ ##MIMOSA_COL_OVF?_WARN
+                        elif col>=1152:
+                            return hit_i,raw_i,2, mframe, dlen, idx, numstatus, row,ovf,\
+                                   tlu_buf,tlu_buf_i,hit_buf,hit_buf_i,event_number,debug
+ ##MIMOSA_COL_ERROR
                         for k in range(num + 1):
                             hit_buf[hit_buf_i]['frame'] = mframe
                             hit_buf[hit_buf_i]['x'] = col + k
@@ -117,10 +130,13 @@ def _m26_converter(raw_data, plane, hits, mframe, dlen, idx, numstatus, row,ovf,
             #rint raw_i,hex(raw_d),"tlu",mframe, raw_d & 0x0000FFFF ,event_number
             tlu_buf_i= tlu_buf_i+1
             if tlu_buf_i==tlu_buf.shape[0]:
-                return hit_i,raw_i,10  ##TLU_BUF_OVF_WANNING
+                return hit_i,raw_i,10, mframe, dlen, idx, numstatus, row,ovf,\
+                       tlu_buf,tlu_buf_i,hit_buf,hit_buf_i,event_number,debug
+  ##TLU_BUF_OVF_WANNING
             event_number=event_number+1
 
-    return hit_i,raw_i,0
+    return hit_i,raw_i,0, mframe, dlen, idx, numstatus, row,ovf,\
+           tlu_buf,tlu_buf_i,hit_buf,hit_buf_i,event_number,debug
 
 def m26_converter(fin,fout,plane):
     start=0
@@ -136,7 +152,6 @@ def m26_converter(fin,fout,plane):
     hits=np.empty(n*10,dtype=hit_dtype)
     tlu_buf=np.empty(1024,dtype=tlu_buf_dtype)
     hit_buf=np.empty(4096,dtype=hit_buf_dtype)
-    err=0
     ovf=0
     tlu_buf_i=0
     hit_buf_i=0
@@ -156,8 +171,10 @@ def m26_converter(fin,fout,plane):
                         title='hit_data')
             while True:
                 tmpend=min(start+n,end)
-                hit_i,raw_i,err= _m26_converter(tb.root.raw_data[start:tmpend], plane, hits, mframe, dlen, idx, numstatus,row,ovf,\
-                                                   err, tlu_buf,tlu_buf_i,hit_buf,hit_buf_i,event_number,debug)
+                hit_i,raw_i,err, mframe, dlen, idx, numstatus, row,ovf, \
+                      tlu_buf,tlu_buf_i,hit_buf,hit_buf_i,event_number,debug= \
+                       _m26_converter(tb.root.raw_data[start:tmpend], plane, hits, mframe, dlen, idx, numstatus,row,ovf,\
+                       tlu_buf,tlu_buf_i,hit_buf,hit_buf_i,event_number,debug)
                 t1=time.time()-t0
                 if err==0:
                     print start,raw_i,hit_i,err,"---%.3f%% %.3fs(%.3fus/dat)"%((tmpend*100.0)/end, t1, (t1)/tmpend*1.0E6)
