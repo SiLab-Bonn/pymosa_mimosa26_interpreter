@@ -212,8 +212,10 @@ def m26_converter(fin,fout,plane):
                     break
 aligned_dtype = np.dtype([('event_number', '<i8'), ('frame','u1'),
                       ('column', '<u2'), ('row', '<u2'),('charge', '<u2')])
+aligned_dtype2 = np.dtype([('event_number', '<i8'), ('frame','u4'),
+                      ('column', '<u2'), ('row', '<u2'),('charge', '<u2')])
 @njit
-def _align_event_number(fe_hits,m26_hits,hits,tr,debug):
+def _align_event_number(fe_hits,m26_hits,hits,tr,frame,debug):
     hit_i=0
     m26_i=0
     for fe_i in range(fe_hits.shape[0]):
@@ -232,7 +234,10 @@ def _align_event_number(fe_hits,m26_hits,hits,tr,debug):
                else:
                    hits[hit_i]["row"]=m26_hits[m26_i]["y"]+1
                    hits[hit_i]["column"]=m26_hits[m26_i]["x"]+1
-               hits[hit_i]['frame']=0
+               if frame==True:
+                   hits[hit_i]['frame']=m26_hits[m26_i]['frame']
+               else:
+                   hits[hit_i]['frame']=0
                hits[hit_i]['charge']=1
                hit_i=hit_i+1
                m26_i=m26_i+1
@@ -248,7 +253,7 @@ def _align_event_number(fe_hits,m26_hits,hits,tr,debug):
            return fe_i,m26_i,hit_i,0
     return fe_i+1, m26_i,hit_i,3
 
-def align_event_number(fin,fe_fin,fout,tr=False):
+def align_event_number(fin,fe_fin,fout,tr=False,frame=False):
     m26_start=0
     fe_start=0
     n = 10000000
@@ -262,28 +267,34 @@ def align_event_number(fin,fe_fin,fout,tr=False):
     fe_end=int(len(fe_tb.root.Hits))
     print "fe",fe_end
     with tables.open_file(fout,'w') as out_tb:
-        description = np.zeros((1, ), dtype=aligned_dtype).dtype
+        if frame==True:
+            description = np.zeros((1, ), dtype=aligned_dtype2).dtype
+        else:
+            description = np.zeros((1, ), dtype=aligned_dtype).dtype
         hit_table = out_tb.create_table(out_tb.root, 
                     name='Hits', 
                     description=description, 
                     title='hit_data')
         t0 = time.time()
-        hits = np.empty(n, dtype=aligned_dtype)
+        if frame==True:
+            hits = np.empty(n, dtype=aligned_dtype2)
+        else:
+            hits = np.empty(n, dtype=aligned_dtype)
 
         while True:
            fe_tmpend=min(fe_start+n/10,fe_end)
            m26_tmpend=min(m26_start+n,m26_end)
            fe_i,m26_i,hit_i,err= _align_event_number(fe_tb.root.Hits[fe_start:fe_tmpend],
                                                   m26_tb.root.Hits[m26_start:m26_tmpend],
-                                                  hits,tr,debug)
+                                                  hits,tr,frame,debug)
            t1=time.time()-t0
            if err==0:
                print fe_start,m26_start,fe_i,m26_i,hit_i,err,"---%.3f%% %.3fs(%.3fus/dat)"%((m26_tmpend*100.0)/m26_end, t1, (t1)/m26_tmpend*1.0E6)
            else:
-               print "error",hit_i,fe_i,m26_i,"ERROR=",err
+               print "ERROR=%d"%err,hit_i,fe_i,hex(fe_tb.root.Hits[fe_start+fe_i]["event_number"]),
+               print m26_i,hex(m26_tb.root.Hits[m26_start+hit_i]["event_number"])
                m26_i=m26_i+1
                fe_i=fe_i+1
-               return
            hit_table.append(hits[:hit_i])
            hit_table.flush()
            fe_start=fe_start+fe_i
