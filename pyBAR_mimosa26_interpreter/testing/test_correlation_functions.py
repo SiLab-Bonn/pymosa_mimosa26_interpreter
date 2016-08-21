@@ -4,7 +4,7 @@ import time
 import unittest
 import numpy as np
 
-from pyBAR_mimosa26_interpreter import correlation_functions
+from pyBAR_mimosa26_interpreter import correlation_functions, correlatefm_test
 
 class TestCorrelation(unittest.TestCase):
 
@@ -14,8 +14,8 @@ class TestCorrelation(unittest.TestCase):
         cls.corr_row_mm = np.zeros((576,576), dtype=np.uint32)
         cls.corr_col_fm= np.zeros((337,1152), dtype=np.uint32) 
         cls.corr_row_fm = np.zeros((81,576), dtype=np.uint32)
-        cls.corr_col_fm= np.zeros((1152,337), dtype=np.uint32) 
-        cls.corr_row_fm = np.zeros((576,81), dtype=np.uint32)
+        cls.corr_col_mf= np.zeros((1152,337), dtype=np.uint32) 
+        cls.corr_row_mf = np.zeros((576,81), dtype=np.uint32)
         
         cls.fe_dtype = np.dtype([('event_number', '<i8'), ('trigger_number', '<u4'), ('relative_BCID', 'u1'),('LVL1ID', '<u2'),
                              ('column', 'u1'), ('row', '<u2'), ('tot', 'u1'), ('BCID', '<u2'), ('TDC', '<u2'),
@@ -158,6 +158,44 @@ class TestCorrelation(unittest.TestCase):
 
     
 #test correlate_fm
+
+    def test_fe_trig_in_m26_range(self):
+        
+        fe_data = np.array([(45593, 0xFFF3253, 7, 10, 40, 120, 3, 189, 0, 0, 1, 0L, 64),
+                            (45593, 0xFFF3254, 7, 10, 60, 180, 3, 189, 0, 0, 1, 0L, 64),
+                            (45593, 0xFFF3255, 7, 10, 60, 180, 3, 189, 0, 0, 1, 0L, 64),
+                            (45593, 0xFFF3256, 7, 10, 60, 180, 3, 189, 0, 0, 1, 0L, 64)
+                            ], self.fe_dtype)
+                            
+        m26_data = np.array([(29123, 130515341L, 0x3253, 0x3254, 2, 35435470L, 555, 333L, 52171, 0),
+                             (29123, 130515341L, 0x3254, 0x3255, 2, 35435471L, 666, 444L, 52171, 0),
+                             (29123, 130515341L, 0x3254, 0x3257, 2, 35435472L, 555, 333L, 52171, 0),
+                             (29123, 130515341L, 0x3255, 0x3260, 2, 35435473L, 555, 333L, 52171, 0)],
+                             self.m26_dtype)
+                    
+        fe_index, m26_index = correlation_functions.correlate_fm(fe_data, m26_data, self.corr_col_fm,  self.corr_row_fm, 0,1)
+        
+        self.assertEqual(fe_index, 1)
+        self.assertEqual(m26_index, 1)
+        
+    def test_fe_trig_not_in_m26_range(self):
+        
+        fe_data = np.array([(45593, 0xFFF3253, 7, 10, 40, 120, 3, 189, 0, 0, 1, 0L, 64),
+                            (45593, 0xFFF3254, 7, 10, 60, 180, 3, 189, 0, 0, 1, 0L, 64),
+                            (45593, 0xFFF3255, 7, 10, 60, 180, 3, 189, 0, 0, 1, 0L, 64),
+                            (45593, 0xFFF3256, 7, 10, 60, 180, 3, 189, 0, 0, 1, 0L, 64)
+                            ], self.fe_dtype)
+                            
+        m26_data = np.array([(29123, 130515341L, 0x3257, 0x3258, 2, 35435470L, 555, 333L, 52171, 0),
+                             (29123, 130515341L, 0x3257, 0x3258, 2, 35435471L, 666, 444L, 52171, 0),
+                             (29123, 130515341L, 0x3257, 0x3258, 2, 35435472L, 555, 333L, 52171, 0),
+                             (29123, 130515341L, 0x3257, 0x3260, 2, 35435473L, 555, 333L, 52171, 0)],self.m26_dtype)
+                    
+        fe_index, m26_index = correlation_functions.correlate_fm(fe_data, m26_data, self.corr_col_fm,  self.corr_row_fm, 0,1)
+        
+        self.assertEqual(fe_index, 3)
+        self.assertEqual(m26_index, 0)
+
 
 if __name__ == '__main__':
     suite = unittest.TestLoader().loadTestsFromTestCase(TestCorrelation)
