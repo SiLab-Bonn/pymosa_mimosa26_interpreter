@@ -4,7 +4,7 @@ import time
 import unittest
 import numpy as np
 
-from pyBAR_mimosa26_interpreter import correlation_functions, correlatefm_test
+from pyBAR_mimosa26_interpreter import correlation_functions
 
 class TestCorrelation(unittest.TestCase):
 
