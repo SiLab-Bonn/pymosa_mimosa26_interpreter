@@ -8,6 +8,8 @@ sudo: false
 notifications:
   email:
   - pohl@physik.uni-bonn.de
+  - thirono@uni-bonn.de
+  - s6plwolf@uni-bonn.de
   
 install:
   - if [[ "$TRAVIS_PYTHON_VERSION" == "2.7" ]]; then
