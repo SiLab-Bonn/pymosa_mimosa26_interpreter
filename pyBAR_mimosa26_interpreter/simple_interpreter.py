@@ -6,10 +6,8 @@ import numpy as np
 import time
 import tables
 
-hit_dtype = np.dtype([('plane', '<u1'),('mframe', '<u4'),('timestamp','<u4'),('tlu', '<u2'),('x', '<u2'), ('y', '<u2'), ('val','<u2'),('val2','<u2')])
-
-#@njit
-def _m26_interpreter(raw, dat, idx,mframe,timestamp,dlen,numstatus,row,tlu,lv1,ovf): 
+@njit
+def _m26_interpreter(raw, dat, idx,mframe,timestamp,dlen,numstatus,row,tlu,lv1,ovf,tlu_flg): 
     fetot = 0
     fecol = 0
     ferow = 0
@@ -45,7 +43,7 @@ def _m26_interpreter(raw, dat, idx,mframe,timestamp,dlen,numstatus,row,tlu,lv1,o
             else:
                 idx[mid] = idx[mid] + 1
                 if idx[mid] == 1:
-                    timestamp[plane] = (0x0000FFFF & raw_d) << 16 |timestamp[plane]
+                    timestamp[plane] = (0x0000FFFF & raw_d) << 16 | timestamp[plane]
                     #print raw_i,hex(raw_d),mid,idx[mid],"timestamp", timestamp[plane]
                 elif idx[mid] == 2:
                     mframe[mid + 1] = (0x0000FFFF & raw_d)
@@ -56,15 +54,17 @@ def _m26_interpreter(raw, dat, idx,mframe,timestamp,dlen,numstatus,row,tlu,lv1,o
                     dlen[mid] = (raw_d & 0x0000FFFF) * 2
                     #print raw_i,hex(raw_d),mid,idx[mid],"dlen", dlen[mid]
                 elif idx[mid] == 5:
+                    #print raw_i,hex(raw_d),mid,idx[mid],"dlen2", dlen[mid],(raw_d & 0x0000FFFF) * 2
                     if dlen[mid]!=(raw_d & 0x0000FFFF) * 2:
                         return dat[:hit],raw_i,3 ##MIMOSA_DLEN_ERROR
                 elif idx[mid] == 6 + dlen[mid]:
+                    #print raw_i,hex(raw_d),mid,idx[mid],"tailer fix value 0xaa50"
                     if raw_d & 0xFFFF != 0xaa50: 
                         return dat[:hit],raw_i,4 ##MIMOSA_TAILER_ERROR
                 elif idx[mid] == 7 + dlen[mid]:
                     dlen[mid] = -1
                     numstatus[mid] = 0
-                    print raw_i,hex(raw_d),mframe[plane],plane
+                    #print raw_i,hex(raw_d),mid,idx[mid],"tailer2",mframe[plane],plane
                     if raw_d & 0xFFFF != (0xaa50 | plane): 
                         return dat[:hit],raw_i,5  ##MIMOSA_TAILER2_ERROR
                 else:
@@ -90,7 +90,7 @@ def _m26_interpreter(raw, dat, idx,mframe,timestamp,dlen,numstatus,row,tlu,lv1,o
                             dat[hit].plane = plane
                             dat[hit].mframe = mframe[plane]
                             dat[hit].timestamp = timestamp[plane]
-                            dat[hit].tlu = 0
+                            dat[hit].tlu = tlu
                             dat[hit].x = col + k
                             dat[hit].y = row[mid]
                             dat[hit].val = 0
@@ -100,23 +100,21 @@ def _m26_interpreter(raw, dat, idx,mframe,timestamp,dlen,numstatus,row,tlu,lv1,o
             tlu = raw_d & 0xFFFF
             timestamp[0] = (raw_d >>16) & 0x7FFF | (timestamp[1] & 0xFFFF8000) # TODO be more precise.
             if timestamp[0] < timestamp[1]:
-                if timestamp[0] < 0xFFFF8000:
-                    timestamp[0]= timestamp[0] + 0x8000
-                else:
-                    timestamp[0]= (timestamp[0]-0xFFFF8000) + 0x8000
+                  timestamp[0]= timestamp[0] + 0x8000
+                  tlu_flg=1
             mframe[0] = mframe[1]
             felv1=0
-            tm = (raw_d >>16) & 0x7FFF
             dat[hit].plane = -1
-            dat[hit].mframe = -1
-            dat[hit].timestamp = tm
+            dat[hit].mframe = mframe[0]
+            dat[hit].timestamp = timestamp[0]
             dat[hit].tlu = tlu
             dat[hit].x = 0
             dat[hit].y = 0
-            dat[hit].val = 0
-            dat[hit].val2 = 0
+            dat[hit].val = idx[1] ## debug
+            dat[hit].val2 = tlu_flg
             hit = hit + 1
-                            
+            tlu_flg=0
+     
         elif(0xFF000000 & raw_d == 0x01000000): #FEI4
             if(0xFF0000 & raw_d == 0x00EA0000) | (0xFF0000 & raw_d == 0x00EF0000) |(0xFF0000 & raw_d == 0x00EC0000): ## other data
                 pass
@@ -160,13 +158,13 @@ def _m26_interpreter(raw, dat, idx,mframe,timestamp,dlen,numstatus,row,tlu,lv1,o
                     if fecol<=80 and fecol>=1 and ferow<=336 and ferow >=1:
                         #dat[hit] = (0,mframe[0],timestamp[0],tlu, fecol, ferow, tot,lv)
                         dat[hit].plane = 0
-                        dat[hit].mframe = mframe[0]
+                        dat[hit].mframe = felv1
                         dat[hit].timestamp = timestamp[0]
                         dat[hit].tlu = tlu
                         dat[hit].x = fecol
                         dat[hit].y = ferow
                         dat[hit].val = fetot
-                        dat[hit].val2 = felv1
+                        dat[hit].val = felv1
                         hit=hit+1
                     else:
                         return dat[:hit],raw_i,7 ##FEI4_TOT2_ERROR
@@ -174,7 +172,10 @@ def _m26_interpreter(raw, dat, idx,mframe,timestamp,dlen,numstatus,row,tlu,lv1,o
         
     return dat[:hit],raw_i,0
     
-def m26_interpreter(fin,fout):
+def m26_interpreter(fin,fout,debug=0):
+    m26_hit_dtype = np.dtype([('plane', '<u1'),('mframe', '<u4'),('timestamp','<u4'),('tlu', '<u1'),
+                      ('x', '<u2'), ('y', '<u2'), ('val','<u1'),('val2','<u1')])
+    
     mframe = [0] * 7
     timestamp = np.zeros(7,dtype=np.uint32)
     dlen = [-1] * 6
@@ -184,46 +185,49 @@ def m26_interpreter(fin,fout):
     row = [-1] * 6
     felv1=-1
     tlu = 0
+    tlu_flg=0
     start=0
     n = 10000000
 
     with tables.open_file(fin) as tb:
         end=int(len(tb.root.raw_data))
-        print "n of raw data",end
+        print "# of raw data",end
         t0 = time.time()
-        dat = np.empty(n, dtype=hit_dtype)
+        dat = np.empty(n, dtype=m26_hit_dtype)
         dat = dat.view(np.recarray)
         with tables.open_file(fout, 'w') as out_file_h5:
             while True:
                 tmpend=min(start+n,end)
-                hit_dat,raw_i,err =_m26_interpreter(tb.root.raw_data[start:tmpend],dat, idx,mframe,timestamp,dlen,numstatus,row,tlu,felv1,ovf)
+                hit_dat,raw_i,err =_m26_interpreter(tb.root.raw_data[start:tmpend],dat, idx,mframe,timestamp,dlen,numstatus,row,tlu,felv1,ovf,tlu_flg)
                 t1=time.time()-t0
                 if err==0:
                     print start,raw_i,len(hit_dat),ovf,"---%.3f%% %.3fs(%.3fus/dat)"%((tmpend*100.0)/end, t1, (t1)/tmpend*1.0E6)
                 else:
                     if err==1:
-                        print raw_i,"MIMOSA_ROW_ERROR",
+                        print "MIMOSA_ROW_ERROR",
                     elif err==2:
-                        print raw_i,"MIMOSA_COL_ERROR",
+                        print "MIMOSA_COL_ERROR",
                     elif err==3:
-                        print raw_i,"MIMOSA_DLEN_ERROR",
+                        print "MIMOSA_DLEN_ERROR",
                     elif err==4:
-                        print raw_i,"MIMOSA_TAILER_ERROR",
+                        print "MIMOSA_TAILER_ERROR",
                     elif err==5:
-                        print raw_i,"MIMOSA_TAILER2_ERROR",
+                        print "MIMOSA_TAILER2_ERROR",
                     elif err==6:
-                        print raw_i,"FEI4_TOT1_ERROR",
+                        print "FEI4_TOT1_ERROR",
                     elif err==7:
-                        print raw_i,"FEI4_TOT2_ERROR",
+                        print "FEI4_TOT2_ERROR",
                     elif err==8:
-                        print raw_i,"MIMOSA_OVF_WARN",
+                        print "MIMOSA_OVF_WARN",
+                    print err,start,raw_i,hex(tb.root.raw_data[start+raw_i])
+                    if debug==2:
+                        print_start=max(start+raw_i-300,0)
+                        for j in range(print_start,start+raw_i+100,1):
+                            print "ERROR %4d %4d"%(j-start+raw_i,j),hex(tb.root.raw_data[j])
+                        break
                     raw_i=raw_i+1
-                    #print err,start,raw_i,hex(tb.root.raw_data[start+raw_i])
-                    #for j in range(-100,100,1):
-                    #    print "ERROR %4d"%j,start+raw_i+j,hex(tb.root.raw_data[start+raw_i+j])
-                    #break
                 if start==0:
-                    description = np.zeros((1, ), dtype=hit_dtype).dtype
+                    description = np.zeros((1, ), dtype=m26_hit_dtype).dtype
                     hit_table = out_file_h5.create_table(out_file_h5.root, 
                         name='Hits', 
                         description=description, 
