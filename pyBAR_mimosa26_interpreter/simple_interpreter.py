@@ -90,7 +90,7 @@ def _m26_interpreter(raw, dat, idx,mframe,timestamp,dlen,numstatus,row,tlu,lv1,o
                             dat[hit].plane = plane
                             dat[hit].mframe = mframe[plane]
                             dat[hit].timestamp = timestamp[plane]
-                            dat[hit].tlu = tlu
+                            dat[hit].tlu = 0
                             dat[hit].x = col + k
                             dat[hit].y = row[mid]
                             dat[hit].val = 0
@@ -98,7 +98,7 @@ def _m26_interpreter(raw, dat, idx,mframe,timestamp,dlen,numstatus,row,tlu,lv1,o
                             hit = hit + 1
         elif(0x80000000 & raw_d == 0x80000000): #TLU
             tlu = raw_d & 0xFFFF
-            timestamp[0] = (raw_d >>16) & 0x7FFF | (timestamp[1] & 0xFFFF8000) # TODO be more precise.
+            timestamp[0] = (raw_d >>16) & 0x7FFF | (timestamp[1] & 0xFFFF8000)  ## TODO implement more
             if timestamp[0] < timestamp[1]:
                   timestamp[0]= timestamp[0] + 0x8000
                   tlu_flg=1
@@ -111,10 +111,10 @@ def _m26_interpreter(raw, dat, idx,mframe,timestamp,dlen,numstatus,row,tlu,lv1,o
             dat[hit].x = 0
             dat[hit].y = 0
             dat[hit].val = idx[1] ## debug
-            dat[hit].val2 = tlu_flg
+            dat[hit].val2 = 0
             hit = hit + 1
             tlu_flg=0
-     
+
         elif(0xFF000000 & raw_d == 0x01000000): #FEI4
             if(0xFF0000 & raw_d == 0x00EA0000) | (0xFF0000 & raw_d == 0x00EF0000) |(0xFF0000 & raw_d == 0x00EC0000): ## other data
                 pass
@@ -156,7 +156,6 @@ def _m26_interpreter(raw, dat, idx,mframe,timestamp,dlen,numstatus,row,tlu,lv1,o
                 ferow=ferow+1
                 if fetot!=0xF:
                     if fecol<=80 and fecol>=1 and ferow<=336 and ferow >=1:
-                        #dat[hit] = (0,mframe[0],timestamp[0],tlu, fecol, ferow, tot,lv)
                         dat[hit].plane = 0
                         dat[hit].mframe = felv1
                         dat[hit].timestamp = timestamp[0]
@@ -164,7 +163,7 @@ def _m26_interpreter(raw, dat, idx,mframe,timestamp,dlen,numstatus,row,tlu,lv1,o
                         dat[hit].x = fecol
                         dat[hit].y = ferow
                         dat[hit].val = fetot
-                        dat[hit].val = felv1
+                        dat[hit].val2 = felv1
                         hit=hit+1
                     else:
                         return dat[:hit],raw_i,7 ##FEI4_TOT2_ERROR
