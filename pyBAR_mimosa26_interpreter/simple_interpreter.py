@@ -299,7 +299,7 @@ def _m26_interpreter(raw, dat, idx,mframe,timestamp,dlen,numstatus,row,tlu,felv1
         
     return dat[:hit],raw_i,0,idx,mframe,timestamp,dlen,numstatus,row,tlu,felv1,ovf,ts_pre,mframe_pre
     
-def m26_interpreter(fin,fout,debug=2):
+def m26_interpreter(fin,fout,debug=0):
     m26_hit_dtype = np.dtype([('plane', '<u1'),('mframe', '<u4'),('timestamp','<u4'),('tlu', '<u2'),
                       ('x', '<u2'), ('y', '<u2'), ('val','<u1'),('val2','<u1')])
     
