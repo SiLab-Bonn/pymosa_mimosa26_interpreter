@@ -15,11 +15,16 @@ def _build_fe(hit,buf,h_idx,flg,bc0,bc,lv1,event_number,tlu,timestamp,debug):
     h_i=0
     buf_i=0
     lv1_debug=0
+    #tlu_cnt_debug=0
     while h_i< len(hit):
         if flg==1 or flg==0:
             ii=0
             for ii,hh in enumerate(hit[h_idx:]):
                 if hh["plane"]==255:
+                    ##print "tlu data h_i=%d"%h_i,h_idx+ii,hh,"pass"
+                    #tlu_cnt_debug=tlu_cnt_debug+1
+                    #if tlu_cnt_debug > 1:
+                    #    print "many tlu data h_idx=%d"%h_idx, ii, hh
                     pass
                 elif hh["x"]==0xFFFD:
                     
@@ -27,12 +32,15 @@ def _build_fe(hit,buf,h_idx,flg,bc0,bc,lv1,event_number,tlu,timestamp,debug):
                         lv1=hh["val"]
                         bc0=hh["y"]
                         flg=1
+                        #print "first trig:h_i=%d"%h_i,h_idx+ii,"lv1=%d"%lv1,"bc=%d"%bc0
                     elif lv1!=hh["val"]:
+                        #print "event done:h_i=%d"%h_i,h_idx,ii,lv1,"new_lv1=%d"%hh["val"],#"tlu_cnt=%d"%tlu_cnt_debug
                         flg=2
                         break
                     bc=hh["y"]
                     lv1_debug=hh["y"]
                 elif flg==1:
+                    #print "fe_data:",ii,bc0,bc,lv1,lv1_debug,hh
                     buf[buf_i]["event_number"]=max(event_number,0)
                     buf[buf_i]["trigger_number"]=tlu
                     buf[buf_i]["trigger_time_stamp"]=np.uint64(timestamp)
@@ -51,11 +59,15 @@ def _build_fe(hit,buf,h_idx,flg,bc0,bc,lv1,event_number,tlu,timestamp,debug):
                 h_idx=h_idx+ii+1
                 return buf[:buf_i],h_i,h_idx,flg,bc0,bc,lv1,event_number,tlu,timestamp
         elif flg==2:
+            ##print "search for tlu h_i=%d"%h_i,hit[h_i]
             if hit[h_i]["plane"]==255:
+                    #print "find tlu data h_i=%d"%h_i,hit[h_i]
                     h_idx=max(h_i+1,h_idx)
                     flg=0
                     tlu=hit[h_i]['tlu']
                     timestamp=hit[h_i]['timestamp']
+                    #if h_idx !=h_i + 1 :
+                    #    print "INFO tlu-fe data mixed",(h_i,h_idx,hit[h_i])
                     event_number=event_number+1
                     if debug==1:
                         buf[buf_i]["event_number"]=event_number
@@ -71,7 +83,7 @@ def _build_fe(hit,buf,h_idx,flg,bc0,bc,lv1,event_number,tlu,timestamp,debug):
             else:
                 pass
             h_i=h_i+1
-
+        ##print "end of most outer loop h_i=%d"%h_i,"flg=%d"%flg
              
     return buf[:buf_i],h_i,h_idx,flg,bc0,bc,lv1,event_number,tlu,timestamp
             
@@ -109,11 +121,10 @@ def build_fe_h5(fins,fout,n=100000000,debug=1):
                     if len(hit)==0:
                         start=tmpend
                         continue
-
                     (buf_out,h_i,h_idx,flg,bc0,bc,lv1,event_number,tlu,timestamp
-                        )=_build_fe2(
+                        )=_build_fe(
                          hit,buf,h_idx,flg,bc0,bc,lv1,event_number,tlu,timestamp,debug=debug)
-
+                    if len(buf_out)!=0:
                         hit_table.append(buf_out)
                         hit_table.flush()
                         pre_timestamp=buf_out["trigger_time_stamp"][-1]
@@ -121,7 +132,9 @@ def build_fe_h5(fins,fout,n=100000000,debug=1):
                     h_idx=h_idx-h_i
                     total_data=total_data+len(buf_out)
                     print "%.3f%%"%(100.0*tmpend/end),"%.3fs"%(time.time()-t0), "total_data=%d"%total_data
+
                     start=tmpend
+
     
 if __name__=="__main__":
     import os,sys,string
@@ -131,6 +144,7 @@ if __name__=="__main__":
     fins=[]
     for fin in sys.argv[1:]:
           fins.append(fin)
+
     fout=string.join(fins[0].split("_")[:-1],"_")+"_tlu.h5"
     build_fe_h5(fins,fout,n=100000000)
 

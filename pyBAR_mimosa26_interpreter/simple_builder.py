@@ -44,7 +44,7 @@ def _build(m26, tlu, buf,event_number):
             d1_idx=d1_idx+1
     return 0, buf[:buf_i],d1_idx,d2_idx,event_number
 
-def builde_h5(fins,fout,planes=[1,2,3,4,5,6],n=10000000):
+def build_h5(fins,fout,planes=[1,2,3,4,5,6],n=10000000):
     #### get trigger
     if isinstance(fins,str):
         fins=[fins]
