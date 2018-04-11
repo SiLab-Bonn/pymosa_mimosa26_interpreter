@@ -6,7 +6,7 @@ import time
 import tables
 
 @njit
-def _m26_interpreter(raw, dat, idx,mframe,timestamp,dlen,numstatus,row,tlu,felv1,ovf,ts_pre,mframe_pre,debug): 
+def _m26_interpreter(raw, dat, idx,mframe,timestamp,dlen,numstatus,row,tlu,felv1,ovf,ts_pre,mframe_pre,fe_id,debug): 
     fetot = 0
     fecol = 0
     ferow = 0
@@ -221,7 +221,7 @@ def _m26_interpreter(raw, dat, idx,mframe,timestamp,dlen,numstatus,row,tlu,felv1
         ###################################
         ###  FE-I4
         ###################################
-        elif (0xFF000000 & raw_d) == 0x01000000: #FEI4
+        elif (0xFF000000 & raw_d) == 0x01000000*fe_id: #FEI4
             if( (0xFF0000 & raw_d) == 0x00EA0000) | ((0xFF0000 & raw_d) == 0x00EF0000) |((0xFF0000 & raw_d) == 0x00EC0000): ## other data
                 pass
             elif (0xFF0000 & raw_d == 0x00E90000): ##BC
@@ -309,7 +309,7 @@ def _m26_interpreter(raw, dat, idx,mframe,timestamp,dlen,numstatus,row,tlu,felv1
         
     return dat[:hit],raw_i,0,idx,mframe,timestamp,dlen,numstatus,row,tlu,felv1,ovf,ts_pre,mframe_pre
     
-def m26_interpreter(fin,fout,debug=2):
+def m26_interpreter(fin,fout,fe_id=1,debug=2):
     m26_hit_dtype = np.dtype([('plane', '<u1'),('mframe', '<u4'),('timestamp','<u4'),('tlu', '<u2'),
                       ('x', '<u2'), ('y', '<u2'), ('val','<u1')])
     if isinstance(fin,str):
@@ -328,7 +328,7 @@ def m26_interpreter(fin,fout,debug=2):
     mframe_pre=mframe[1]
     
     n = 100000000
-    dat = np.empty(n, dtype=m26_hit_dtype)
+    dat = np.empty(int(n*1.5), dtype=m26_hit_dtype)
     dat = dat.view(np.recarray)
     t0 = time.time()
     n_fe=0
@@ -352,6 +352,7 @@ def m26_interpreter(fin,fout,debug=2):
                     )=_m26_interpreter(
                     tb.root.raw_data[start:tmpend],dat,
                     idx,mframe,timestamp,dlen,numstatus,row,tlu,felv1,ovf,ts_pre,mframe_pre,
+                    fe_id,
                     debug)
                 t1=time.time()-t0
                 if err==0:
@@ -397,7 +398,7 @@ if __name__=="__main__":
     fins=sys.argv[1:]
     for fin in fins:
         fout=fin[:-3]+"_hit.h5"
-        m26_interpreter(fin,fout,debug=0x8|0x2|0x1)
+        m26_interpreter(fin,fout,fe_id=1, debug=0x8|0x2|0x1)
         print fout
     #with tables.open_file(fout) as f:
     #    dat=f.root.Hits[:]
