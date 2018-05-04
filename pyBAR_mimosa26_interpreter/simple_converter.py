@@ -18,7 +18,9 @@ def _convert(fe_hits,m26_hits,hits,factor_x,offset_x,factor_y,offset_y,tr,debug)
            #print fe_i,m26_i,fe_hits[fe_i]["event_number"],m26_hits[m26_i]["event_number"],
            #print hex(fe_hits[fe_i]["trigger_number"]),hex(m26_hits[m26_i]["trigger_number"])
            m26_trig=m26_hits[m26_i]["trigger_number"] & 0x7FFF
-           if (m26_trig-fe_trig) & 0x4000 == 0x4000:
+           if m26_hits[m26_i]['x']>=1152:
+               m26_i=m26_i+1
+           elif (m26_trig-fe_trig) & 0x4000 == 0x4000:
                m26_i=m26_i+1
            elif m26_hits[m26_i]["trigger_number"]==fe_hits[fe_i]["trigger_number"]:
                hits[hit_i]["event_number"] = fe_hits[fe_i]["event_number"]
@@ -49,12 +51,13 @@ def convert_h5(fin,fe_fin,fout,factor_x=1,offset_x=1,factor_y=1,offset_y=1,tr=Fa
         fe_data = fe_tb.root.Hits[:][["event_number","trigger_number"]]
     fe_data,dummy=np.unique(fe_data,return_index=True)
     fe_end=len(fe_data)
-    print "# of fe event",fe_end
+    print "simple_converter.convert_h5() # of fe event",fe_end
     fe_start=0
-
+    
     with tables.open_file(fin) as m26_tb:
       m26_end=int(len(m26_tb.root.Hits))
-      print "m26",m26_end,
+      print "simple_converter.convert_h5() fin",fin
+      print "simple_converter.convert_h5() # of m26 data",m26_end
       m26_start=0
       with tables.open_file(fout,'w') as out_tb:
         description = np.zeros((1, ), dtype=hit_dtype).dtype
@@ -87,7 +90,8 @@ def convert_fe_h5(fin,fout,col_offset=0,col_factor=1,row_offset=0,row_factor=1,t
     with tables.open_file(fin) as fe_tb:
         fe_data = fe_tb.root.Hits[:][["event_number","relative_BCID","column","row","tot"]]
     fe_data=fe_data[fe_data['row']!=0]
-    print "# of hits in fe",len(fe_data)
+    fe_data=fe_data[fe_data['column']<81]
+    print "convert_fe_h5() # of hits in FEI4",len(fe_data)
     with tables.open_file(fout,'w') as out_tb:
         description = np.zeros((1, ), dtype=hit_dtype).dtype
         hit_table = out_tb.create_table(out_tb.root, 
