@@ -26,7 +26,7 @@ def fill_occupanc_hist(hist, hits):
 class DataInterpreter(object):
     ''' Class to provide an easy to use interface to encapsulate the interpretation process.'''
 
-    def __init__(self, raw_data_file, analyzed_data_file=None, create_pdf=True, chunk_size=5000000): 
+    def __init__(self, raw_data_file, analyzed_data_file=None, create_pdf=True, chunk_size=5000000, trigger_data_format=2):
         '''
         Parameters
         ----------
@@ -62,10 +62,11 @@ class DataInterpreter(object):
         else:
             self.output_pdf = None
 
-        self._raw_data_interpreter = raw_data_interpreter.RawDataInterpreter()
+        self._raw_data_interpreter = raw_data_interpreter.RawDataInterpreter(trigger_data_format=trigger_data_format)
 
         # Std. settings
         self.chunk_size = chunk_size
+        self.trigger_data_format = trigger_data_format
 
         self.set_standard_settings()
 
@@ -110,6 +111,7 @@ class DataInterpreter(object):
     def interpret_word_table(self):
         with tb.open_file(self._raw_data_file, 'r') as in_file_h5:
             logging.info('Interpreting raw data file %s', self._raw_data_file)
+            logging.info('Trigger data format: %s', self.trigger_data_format)
             with tb.open_file(self._analyzed_data_file, 'w') as out_file_h5:
                 description = np.zeros((1, ), dtype=raw_data_interpreter.hit_dtype).dtype
 
@@ -142,7 +144,7 @@ class DataInterpreter(object):
                 # Add histograms to data file and create plots
                 for plane in range(6):
                     logging.info('Store histograms and create plots for plane %d', plane)
-                    occupancy_array = out_file_h5.createCArray(out_file_h5.root, name='HistOcc_plane%d' % plane, title='Occupancy Histogram of Mimosa plane %d' % plane, atom=tb.Atom.from_dtype(self.occupancy_arrays[plane].dtype), shape=self.occupancy_arrays[plane].shape, filters=self._filter_table)
+                    occupancy_array = out_file_h5.create_carray(out_file_h5.root, name='HistOcc_plane%d' % plane, title='Occupancy Histogram of Mimosa plane %d' % plane, atom=tb.Atom.from_dtype(self.occupancy_arrays[plane].dtype), shape=self.occupancy_arrays[plane].shape, filters=self._filter_table)
                     occupancy_array[:] = self.occupancy_arrays[plane]
                     if self.output_pdf:
                         plotting.plot_fancy_occupancy(self.occupancy_arrays[plane].T, title='Occupancy for plane %d' % plane, filename=self.output_pdf)
