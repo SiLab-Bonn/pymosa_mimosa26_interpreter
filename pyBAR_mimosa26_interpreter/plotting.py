@@ -50,7 +50,7 @@ def plot_fancy_occupancy(hist, title, z_max=None, filename=None):
     setp(axHistx.get_xticklabels() + axHisty.get_yticklabels(), visible=False)
     hight = np.ma.sum(hist, axis=0)
 
-    axHistx.bar(left=range(1, 1153), height=hight, align='center', linewidth=0)
+    axHistx.bar(x=range(1, 1153), height=hight, align='center', linewidth=0)
     axHistx.set_xlim((0.5, 1152.5))
     if hist.all() is np.ma.masked:
         axHistx.set_ylim((0, 1))
@@ -59,7 +59,7 @@ def plot_fancy_occupancy(hist, title, z_max=None, filename=None):
     axHistx.set_ylabel('#')
     width = np.ma.sum(hist, axis=1)
 
-    axHisty.barh(bottom=range(1, 577), width=width, align='center', linewidth=0)
+    axHisty.barh(y=range(1, 577), width=width, align='center', linewidth=0)
     axHisty.set_ylim((576.5, 0.5))
     if hist.all() is np.ma.masked:
         axHisty.set_xlim((0, 1))
@@ -90,7 +90,6 @@ def _plot_1d_hist(hist, yerr=None, title=None, x_axis_title=None, y_axis_title=N
         ax.bar(x=plot_range, height=hist[plot_range],
                color=color, align='center', yerr=yerr)
     else:
-        print hist[plot_range]
         ax.bar(x=plot_range,
                height=hist[plot_range], color=color, align='center')
     ax.set_xlim((min(plot_range) - 0.5, max(plot_range) + 0.5))
