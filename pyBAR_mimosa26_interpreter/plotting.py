@@ -73,3 +73,58 @@ def plot_fancy_occupancy(hist, title, z_max=None, filename=None):
         filename.savefig(fig)
     else:
         fig.savefig(filename)
+
+
+def _plot_1d_hist(hist, yerr=None, title=None, x_axis_title=None, y_axis_title=None, x_ticks=None, color='r',
+                  plot_range=None, log_y=False, filename=None):
+    fig = Figure()
+    FigureCanvas(fig)
+    ax = fig.add_subplot(111)
+
+    hist = np.array(hist)
+    if plot_range is None:
+        plot_range = range(0, len(hist))
+    plot_range = np.array(plot_range)
+    plot_range = plot_range[plot_range < len(hist)]
+    if yerr is not None:
+        ax.bar(x=plot_range, height=hist[plot_range],
+               color=color, align='center', yerr=yerr)
+    else:
+        print hist[plot_range]
+        ax.bar(x=plot_range,
+               height=hist[plot_range], color=color, align='center')
+    ax.set_xlim((min(plot_range) - 0.5, max(plot_range) + 0.5))
+
+    ax.set_title(title, color='red')
+    if x_axis_title is not None:
+        ax.set_xlabel(x_axis_title)
+    if y_axis_title is not None:
+        ax.set_ylabel(y_axis_title)
+    if x_ticks is not None:
+        ax.set_xticks(plot_range)
+        ax.set_xticklabels(x_ticks)
+        ax.tick_params(which='both', labelsize=8)
+    if np.allclose(hist, 0.0):
+        ax.set_ylim((0, 1))
+    else:
+        if log_y:
+            ax.set_yscale('log')
+            ax.set_ylim((1e-1, np.amax(hist) * 2))
+    ax.grid(True)
+
+    if not filename:
+        fig.show()
+    elif isinstance(filename, PdfPages):
+        filename.savefig(fig)
+    else:
+        fig.savefig(filename)
+
+
+def plot_event_status(hist, title=None, filename=None):
+    _plot_1d_hist(hist=hist,
+                  title=title,
+                  log_y=True,
+                  plot_range=range(0, 16),
+                  x_ticks=('MULT\nTRG WRD', 'NO\nTRG', 'DATA\nERR', 'EVENT\nINCMP', 'UNKNOWN\nWRD', 'UNEVEN\nEVENT', 'TRG\nERR',
+                           'TRUNC\nEVENT', 'TAILH\nERR', 'TAILL\nERR', 'M26\nOVF', 'NO\nHIT', 'COL\nERR', 'ROW\nERR', 'TRG\nWRD', 'TS\nOVF'),
+                  color='g', y_axis_title='Number of events', filename=filename)

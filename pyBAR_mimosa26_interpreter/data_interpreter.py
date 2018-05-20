@@ -5,10 +5,13 @@ import numpy as np
 import tables as tb
 import logging
 import progressbar
+
 from numba import njit
 from matplotlib.backends.backend_pdf import PdfPages
+from tqdm import tqdm
 
 from pyBAR_mimosa26_interpreter import raw_data_interpreter
+from pyBAR_mimosa26_interpreter import event_builder
 from pyBAR_mimosa26_interpreter import plotting
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - [%(levelname)-8s] (%(threadName)-10s) %(message)s")
@@ -17,16 +20,29 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - [%(leve
 @njit
 def fill_occupanc_hist(hist, hits):
     for hit_index in range(hits.shape[0]):
-        if hits[hit_index]['plane']==0:
-            pass  # tlu data in plane=0 
+        if hits[hit_index]['plane'] == 255:
+            pass  # TLU data
         else:
-            hist[hits[hit_index]['plane']-1][hits[hit_index]['column'], hits[hit_index]['row']] += 1
+            hist[hits[hit_index]['plane'] - 1][hits[hit_index]['column'], hits[hit_index]['row']] += 1
+
+
+@njit
+def fill_event_status_hist(hist, hits):
+    for hit_index in range(hits.shape[0]):
+        if hits[hit_index]['plane'] == 255:
+            pass  # TLU data
+        else:
+            for i in range(32):
+                plane_id = hits[hit_index]['plane'] - 1
+                if hits[hit_index]['event_status'] & (0b1 << i):
+                    #print hits[hit_index]['event_status']
+                    hist[plane_id][i] += 1
 
 
 class DataInterpreter(object):
     ''' Class to provide an easy to use interface to encapsulate the interpretation process.'''
 
-    def __init__(self, raw_data_file, analyzed_data_file=None, create_pdf=True, chunk_size=5000000, trigger_data_format=2):
+    def __init__(self, raw_data_file, time_reference_file=None, analyzed_data_file=None, create_pdf=True, chunk_size=100000000, trigger_data_format=2):
         '''
         Parameters
         ----------
@@ -43,9 +59,11 @@ class DataInterpreter(object):
         '''
 
         if chunk_size < 100:
-            raise RuntimeError('Please chose reeasonable large chunk size')
+            raise RuntimeError('Please chose reasonable large chunk size')
 
         self._raw_data_file = raw_data_file
+
+        self._time_reference_file = time_reference_file
 
         if analyzed_data_file:
             if os.path.splitext(analyzed_data_file)[1].strip().lower() != ".h5":
@@ -63,6 +81,7 @@ class DataInterpreter(object):
             self.output_pdf = None
 
         self._raw_data_interpreter = raw_data_interpreter.RawDataInterpreter(trigger_data_format=trigger_data_format)
+        self._event_builder = event_builder.EventBuilder()
 
         # Std. settings
         self.chunk_size = chunk_size
@@ -124,7 +143,10 @@ class DataInterpreter(object):
                                                          chunkshape=(self.chunk_size / 100,))
 
                 if self.create_occupancy_hist:
-                    self.occupancy_arrays = np.zeros(shape=(6, 1152, 576), dtype=np.int32)
+                    self.occupancy_arrays = np.zeros(shape=(6, 1152, 576), dtype=np.int32)  # for each plane
+
+                if self.create_error_hist:
+                    self.event_status_hist = np.zeros(shape=(6, 32), dtype=np.int32)  # for each plane
 
                 logging.info("Interpreting...")
                 progress_bar = progressbar.ProgressBar(widgets=['', progressbar.Percentage(), ' ', progressbar.Bar(marker='*', left='|', right='|'), ' ', progressbar.AdaptiveETA()], maxval=in_file_h5.root.raw_data.shape[0], term_width=80)
@@ -138,6 +160,10 @@ class DataInterpreter(object):
 
                     if self.create_occupancy_hist:
                         fill_occupanc_hist(self.occupancy_arrays, hits)
+
+                    if self.create_error_hist:
+                        fill_event_status_hist(self.event_status_hist, hits)
+
                     progress_bar.update(word_index)
                 progress_bar.finish()
 
@@ -147,4 +173,85 @@ class DataInterpreter(object):
                     occupancy_array = out_file_h5.create_carray(out_file_h5.root, name='HistOcc_plane%d' % plane, title='Occupancy Histogram of Mimosa plane %d' % plane, atom=tb.Atom.from_dtype(self.occupancy_arrays[plane].dtype), shape=self.occupancy_arrays[plane].shape, filters=self._filter_table)
                     occupancy_array[:] = self.occupancy_arrays[plane]
                     if self.output_pdf:
-                        plotting.plot_fancy_occupancy(self.occupancy_arrays[plane].T, title='Occupancy for plane %d' % plane, filename=self.output_pdf)
+                        plotting.plot_fancy_occupancy(self.occupancy_arrays[plane].T, z_max='median', title='Occupancy for plane %d' % plane, filename=self.output_pdf)
+
+                    # plot event status
+                    try:
+                        plotting.plot_event_status(hist=self.event_status_hist[plane].T, title='Event status for plane %d ($\Sigma = % i$)' % (plane + 1, hit_table.shape[0]), filename=self.output_pdf)
+                    except:
+                        logging.warning('Could not create event status plot!')
+
+    def interprete_hit_table(self):
+        if self._time_reference_file is None:
+            logging.error('No data file for time reference plane specified. Cannot build events from hit table!')
+            raise
+        # first step: build events from interpreted hit table for each plane
+        for plane in range(1, 7):
+            print self._analyzed_data_file
+            self.build_events_from_hit_table(input_file=self._analyzed_data_file,
+                                             output_file=self._analyzed_data_file[:-3] + '_event_build_plane_%i.h5' % plane,
+                                             plane=plane,
+                                             chunk_size=2000000)
+        # second step: correlate events to time reference plane
+        for plane in range(1, 7):
+            self.correlate_to_time_reference(input_file=self._analyzed_data_file[:-3] + '_event_build_plane_%i.h5' % plane,
+                                             input_file_time_reference=self._time_reference_file,
+                                             output_file=self._analyzed_data_file[:-3] + '_event_build_aligned_plane_%i.h5' % plane,
+                                             transpose=False,
+                                             chunk_size=1000000,
+                                             debug=0)
+
+    def build_events_from_hit_table(self, input_file, output_file, plane, chunk_size=500000):
+        '''
+        Build events from interpreted M26 hit table.
+        In order to build events one Mimosa26 frame is assigned to one TLU word by correlating all M26 data to the TLU word which is within the range
+        defined by the start and stop timestamp of the Mimosa26 data.
+        '''
+        # reset variables before event building after each plane
+        self._event_builder.reset()
+        last_chunk = False  # indicates last chunk
+        description = np.zeros((1, ), dtype=self._event_builder.event_table_dtype).dtype
+
+        with tb.open_file(output_file, 'w') as out_file_h5:
+            # TODO: add excpected row, chunk size?
+            hit_table_out = out_file_h5.create_table(out_file_h5.root, name='Hits', description=description,
+                                                     title='Hit Table for Testbeam Analysis',
+                                                     filters=tb.Filters(complib='blosc', complevel=5, fletcher32=False))
+
+            with tb.open_file(input_file, 'r') as in_file_m26_h5:
+                m26_hit_table = in_file_m26_h5.root.Hits[:]
+                n_m26 = m26_hit_table.shape[0]
+                for i in tqdm(range(0, n_m26, chunk_size)):
+                    hits = m26_hit_table[i:i + chunk_size]
+                    if i + chunk_size > n_m26:
+                        last_chunk = True  # set last chunk indicator
+
+                    hit_data_out = self._event_builder.build_events(hits,
+                                                                    plane,
+                                                                    last_chunk)
+
+                    # append to table
+                    hit_table_out.append(hit_data_out)
+                    hit_table_out.flush()
+
+    def correlate_to_time_reference(self, input_file, input_file_time_reference, output_file, transpose=False, chunk_size=1000000, debug=0):
+        with tb.open_file(input_file_time_reference, 'r') as in_file_ref_h5:
+            hit_table_time_reference = in_file_ref_h5.root.Hits[:]
+            reference_data = hit_table_time_reference[["event_number", "trigger_number"]]
+
+        with tb.open_file(output_file, 'w') as out_file_h5:
+            description = np.zeros((1, ), dtype=self._event_builder.aligned_dtype).dtype
+            hit_table_out = out_file_h5.create_table(out_file_h5.root, name='Hits',
+                                                     description=description, title='hit_data')
+
+            with tb.open_file(input_file, 'r') as in_file_h5:
+                m26_hit_table = in_file_h5.root.Hits[:]
+                n_m26 = m26_hit_table.shape[0]
+                for i in tqdm(range(0, n_m26, chunk_size)):
+                    m26_data = m26_hit_table[i:i + chunk_size][["column", "row", 'trigger_number']]
+                    hit_buffer = self._event_builder.correlate_to_time_ref(m26_data,
+                                                                           reference_data,
+                                                                           transpose)
+
+                    hit_table_out.append(hit_buffer)
+                    hit_table_out.flush()

@@ -19,25 +19,30 @@ General chain of Mimosa26 raw data words
 from numba import njit
 import numpy as np
 
-hit_dtype = np.dtype([('event_number', '<i8'), ('trigger_number', '<i4'), ('timestamp', '<u4'), ('trigger_number_begin', '<u2'),('trigger_number_end', '<u2'), 
-                      ('plane', '<u2'), ('frame', '<u4'), ('column', '<u2'), ('row', '<u4'),('trigger_status', '<u2'), ('event_status', '<u2')])
+FRAME_UNIT_CYCLE = 4608  # time for one frame in units of 40 MHz clock cylces
+
+hit_dtype = np.dtype([('plane', '<u1'), ('frame', '<u4'), ('time_stamp', '<u4'), ('trigger_number', '<u2'),
+                      ('column', '<u2'), ('row', '<u2'),  ('event_status', '<u2')])
+tlu_dtype = np.dtype([('event_number', '<i8'), ('trigger_number', '<i4'), ('frame', '<u4')])
 
 # Event error codes
-NO_ERROR = 0  # No error
-MULTIPLE_TRG_WORD = 1  # Event has more than one trigger word
-NO_TRG_WORD = 2  # Some hits of the event have no trigger word
-DATA_ERROR = 4  # Event has data word combinations that does not make sense (tailor at wrong position, not increasing frame counter ...)
-EVENT_INCOMPLETE = 8  # Data words are missing (e.g. tailor header)
-UNKNOWN_WORD = 16  # Event has unknown words
-UNEVEN_EVENT = 32  # Event has uneven amount of data words
-TRG_ERROR = 64  # A trigger error occured
-TRUNC_EVENT = 128  # Event had to many hits and was truncated
-TDC_WORD = 256  # Event has a TDC word
-MANY_TDC_WORDS = 512  # Event has more than one valid TDC word
-TDC_OVERFLOW = 1024  # Event has TDC word indicating a TDC overflow
-NO_HIT = 2048  # events without any hit, usefull for trigger number debugging
-COL_OVERFLOW = 4096  # column number overflow
-ROW_OVERFLOW = 8192  # row number overflow
+# NO_ERROR = 0  # No error
+MULTIPLE_TRG_WORD = 0x00000001  # Event has more than one trigger word
+NO_TRG_WORD = 0x00000002  # Some hits of the event have no trigger word
+DATA_ERROR = 0x00000004  # Event has data word combinations that does not make sense (tailor at wrong position, not increasing frame counter ...)
+EVENT_INCOMPLETE = 0x00000008  # Data words are missing (e.g. tailor header)
+UNKNOWN_WORD = 0x00000010  # Event has unknown words
+UNEVEN_EVENT = 0x00000020  # Event has uneven amount of data words
+TRG_ERROR = 0x00000040  # A trigger error occured
+TRUNC_EVENT = 0x00000080  # Event had to many hits and was truncated
+TAILER_H_ERROR = 0x00000100  # tailer high error
+TAILER_L_ERROR = 0x00000200  # tailer low error
+MIMOSA_OVERFLOW = 0x00000400  # mimosa overflow
+NO_HIT = 0x00000800  # events without any hit, usefull for trigger number debugging
+COL_ERROR = 0x00001000  # column number error
+ROW_ERROR = 0x00002000  # row number error
+TRG_WORD = 0x00004000  # column number overflow
+TS_OVERFLOW = 0x00008000  # timestamp overflow
 
 
 @njit
@@ -81,16 +86,6 @@ def is_frame_tailer_low(word, plane):  # Check if frame header low word for the 
 
 
 @njit
-def get_data_length(word):
-    return (word & 0x0000FFFF) * 2
-
-
-@njit
-def is_overflow(word):
-    return word & 0x8000 == 0x8000
-
-
-@njit
 def get_n_hits(word):  # Returns the number of hits given by actual column word
     return word & 0x3
 
@@ -116,35 +111,16 @@ def get_frame_length(word):
 
 
 @njit
-def get_trigger_word(word, trigger_data_format):  # Returns trigger word (trigger id and timestamp)
-    if trigger_data_format == 0:
-        trigger_number = word & 0x7FFFFFFF
-        timestamp = 0  # set timestamp to zero
-    elif trigger_data_format == 1:
-        timestamp = word & 0x7FFFFFFF
-        trigger_number = 0  # set trigger number to zero
-    else:
-        trigger_number = word & 0xFFFF
-        timestamp = (word & 0x7FFF0000) >> 16
-    return trigger_number, timestamp
-
-
-@njit
-def get_trigger_timestamp(word):  # time stamp of trigger
+def get_trigger_timestamp(word):  # time stamp of TLU word
     return (word & 0x7FFF0000) >> 16
 
 
 @njit
-def get_trigger_number(word, trigger_data_format):  # time stamp of trigger
+def get_trigger_number(word, trigger_data_format):  # trigger number of TLU word
     if trigger_data_format == 2:
-        return word & 0xFFFF
+        return word & np.uint16(0xFFFF)
     else:
         return word & 0x7FFFFFFF
-
-
-@njit
-def get_timestamp_low(word):  # time stamp low of Mimosa26 data
-    return 0x0000FFFF & word
 
 
 @njit
@@ -168,32 +144,9 @@ def add_event_status(plane_id, event_status, status_code):
 
 
 @njit
-def finish_event(plane_id, hits_buffer, hit_buffer_index, event_status, hits, hit_index):  # Append buffered hits to hit object
-    for i_hit in range(hit_buffer_index):  # Loop over buffered hits
-        hits[hit_index] = hits_buffer[plane_id, i_hit]
-        hits[hit_index]['event_status'] = event_status
-        hit_index += 1
-        if hit_index > hits.shape[0] - 1:
-            raise RuntimeError('Hits array is too small for the hits. Tell developer!')
-    return hit_index  # Return actual hit index; needed to append correctly at next call of finish_event
-
-
-# @njit
-# def get_event_number(plane_id, event_number, timestamp):
-#     for i_ts, ts in enumerate(timestamp):
-#         if i_ts != plane_id:
-#             if ts == timestamp[plane_id]:
-#                 return event_number[i_ts]
-#             elif ts > timestamp[plane_id]:
-#                 return -1
-#             elif event_number[plane_id] < event_number[i_ts]:  ## and ts < timestamp[plane_id]
-#                 event_number[plane_id] = event_number[i_ts]
-#     return event_number[plane_id]+1
-
-
-@njit
-def build_hits(raw_data, frame_id, last_frame_id, frame_length, word_index, n_words, row, hits_buffer, hit_buffer_index,
-               event_status, event_number, trigger_number, trigger_number_begin, trigger_number_end, timestamp, max_hits_per_event, debug, trigger_data_format=0):
+def build_hits(raw_data, frame_id, last_frame_id, frame_length, word_index, n_words, row, event_status,
+               event_number, trigger_number, timestamp, last_timestamp, max_hits_per_chunk, trigger_data_format=2):
+    # TODO update description
     ''' Main interpretation function. Loops over the raw data and creates a hit array. Data errors are checked for.
     A lot of parameters are needed, since the variables have to be buffered for chunked analysis and given for
     each call of this function.
@@ -214,38 +167,27 @@ def build_hits(raw_data, frame_id, last_frame_id, frame_length, word_index, n_wo
         The number of words containing column / row info for each plane, 0 if not set
     row : np.array, shape 6
         The actual readout row (rolling shutter) for each plane, 0 if not set
-    hits_buffer : np.array, shape 6, max_hits_per_event
-        Buffers actual event hits, needed since raw data is analyzed in chunks
-    hit_buffer_index  : np.array, shape 6
-        Hit buffer index for each plane, needed to append hits
     event_status : np.array
         Actual event status for each plane
     event_number : np.array, shape 6
         The event counter set by the software counting full events for each plane
-    trigger_number_begin : number
-        The actual event trigger number recieved during the frame (begin)
-    trigger_number_end : number
-        The actual event trigger number recieved during the frame (end)
     timestamp : np.array shape 6
         The timestamp read from mimosa header
-    max_hits_per_event : number
-        Maximum expected hits per event. Needed to allocate hit buffer.
-    debug : number
-        1st bit: 1=write all trigger as plane 0, 0=off
-        2-32: not used
+    max_hits_per_chunk : number
+        Maximum expected hits per chunk. Needed to allocate hit array.
     trigger_data_format : int
-        0: tlu word is trigger number
-        1: tlu word is timestamp
-        2: tlu word is 15 bit timestamp + 16 bit trigger number
+        0: TLU word is trigger number
+        1: TLU word is timestamp
+        2: TLU word is 15 bit timestamp + 16 bit trigger number
 
     Returns
     -------
-    A list of all input parameters, but raw_data is exchanged for a hit array and max_hits_per_event is not returned.
+    A list of all input parameters.
     '''
     # The raw data order of the Mimosa 26 data should be always START / FRAMEs ID / FRAME LENGTH / DATA
     # Since the clock is the same for each plane; the order is START plane 1, START plane 2, ...
 
-    hits = np.zeros(shape=(raw_data.shape[0] * 5), dtype=hit_dtype)  # Result hits array
+    hits = np.zeros(shape=(max_hits_per_chunk,), dtype=hit_dtype)  # Result hits array
     hit_index = 0  # Pointer to actual hit in resul hit arrray; needed to append hits every event
 
     # Loop over raw data words
@@ -254,10 +196,9 @@ def build_hits(raw_data, frame_id, last_frame_id, frame_length, word_index, n_wo
         if is_mimosa_data(word):  # Check if word is from M26. Other words can come from TLU.
             # Check to which plane the data belongs
             plane_id = get_plane_number(word) - 1  # The actual_plane if the actual word belongs to (0 .. 5)
-
             # Interpret the word of the actual plane
             if is_data_loss(word):
-                # Reset all planes
+                # Reset word index and event status for all planes
                 word_index[0] = -1
                 event_status[0] = 0
                 word_index[1] = -1
@@ -271,179 +212,132 @@ def build_hits(raw_data, frame_id, last_frame_id, frame_length, word_index, n_wo
                 word_index[5] = -1
                 event_status[5] = 0
             elif is_frame_header_high(word):  # New event for actual plane; events are aligned at this header
-                if event_number[plane_id] >= 0:  # First event 0 should not trigger a last event finish, since there is none
-                    if last_frame_id[plane_id] > 0 and frame_id[plane_id] != last_frame_id[plane_id] + 1:
-                        add_event_status(plane_id, event_status, DATA_ERROR)
-                    last_frame_id[plane_id] = frame_id[plane_id]
-                    # print 'Finsihed event', event_number[plane_id], 'for plane', plane_id
-                    hit_index = finish_event(plane_id, hits_buffer, hit_buffer_index[plane_id], event_status[plane_id], hits, hit_index)
-                # Reset counter
-                hit_buffer_index[plane_id] = 0
-                event_status[plane_id] = 0
-                event_number[plane_id] += 1  # Increase event counter for this plane
-                word_index[plane_id] = 0
-                                
-#                 # shift trigger_number
-#                 if last_frame_id[plane_id] > 0 and frame_id[plane_id] != last_frame_id[plane_id] + 1:
-#                         trigger_number_begin[2] = 0x7FFFFFFF
-#                         trigger_number_end[2] = 0x7FFFFFFF
-#                         trigger_number_begin[1] = 0x7FFFFFFF
-#                         trigger_number_end[1] = 0x7FFFFFFF
-#                         trigger_number_begin[0] = 0x7FFFFFFF
-#                         trigger_number_end[0] = 0x7FFFFFFF
-#                         trigger_number_begin[3] = 0x7FFFFFFF
-#                         trigger_number_end[3] = 0x7FFFFFFF
-#                         add_event_status(plane_id, event_status, DATA_ERROR)
-#                 elif plane_id == 0:  # TODO reset trigger_number at the first header not plane_id==0
-#                     trigger_number_begin[2] = trigger_number_begin[1]
-#                     trigger_number_end[2] = trigger_number_end[1]
-#                     trigger_number_begin[1] = trigger_number_begin[0]
-#                     trigger_number_end[1] = trigger_number_end[0]
-#                     trigger_number_begin[0] = 0x7FFFFFFF
-#                     trigger_number_end[0] = 0x7FFFFFFF
-#                     if trigger_number_begin[2] == 0x7FFFFFFF:
-#                         if trigger_number_begin[1] == 0x7FFFFFFF:
-#                             trigger_number_begin[3] = 0x7FFFFFFF
-#                             trigger_number_end[3] = 0x7FFFFFFF
-#                         else:
-#                             trigger_number_begin[3] = trigger_number_begin[1]
-#                             trigger_number_end[3] = trigger_number_end[1]
-#                     else: 
-#                         if trigger_number_begin[1]==0x7FFFFFFF:
-#                             trigger_number_begin[3] = trigger_number_begin[2]
-#                             trigger_number_end[3] = trigger_number_end[2]
-#                         else:
-#                             trigger_number_begin[3] = trigger_number_begin[2]
-#                             trigger_number_end[3] = trigger_number_end[1]
-#                     #print trigger_number_begin[2],trigger_number_begin[1],"-b-",trigger_number_begin[3]
-#                     #print trigger_number_end[2],trigger_number_end[1],"-e-",trigger_number_end[3]
-                last_frame_id[plane_id] = frame_id[plane_id]
-                # Reset counter
+                if plane_id == 0:
+                    last_timestamp = timestamp[1]  # timestamp of last M26 frame
+                    last_frame_id = frame_id[1]  # last M26 frame number
+                # TODO: what is this
+                timestamp[plane_id + 1] = (timestamp[plane_id + 1] & 0xFFFF0000) | word & 0xFFFF
                 event_status[plane_id] = 0
                 word_index[plane_id] = 0
-                timestamp[plane_id] = get_timestamp_low(word)
-
             elif word_index[plane_id] == -1:  # trash data
                 # TODO: add event status trash data
                 pass
             else:  # correct M26 data
                 word_index[plane_id] += 1
                 if word_index[plane_id] == 1:  # 1. timestamp high
-                    timestamp[plane_id] = get_timestamp_high(word) | timestamp[plane_id]
-                    #event_number[plane_id] = get_event_number(plane_id, event_number, timestamp)
+                    # TODO: make this nicer
+                    if (timestamp[plane_id + 1] >> 16) != (0x0000FFFF & word) and (((timestamp[plane_id + 1] >> 16) + 1) & 0xFFFF) != (0x0000FFFF & word):
+                        add_event_status(plane_id + 1, event_status, TS_OVERFLOW)
+
+                    timestamp[plane_id + 1] = get_timestamp_high(word) | timestamp[plane_id + 1] & 0x0000FFFF  # TODO: this is Mimosa26 timestamp?
 
                 elif word_index[plane_id] == 2:  # 2. word should have the frame ID high word
-                    frame_id[plane_id] = get_frame_id_high(word)
+                    frame_id[plane_id + 1] = get_frame_id_high(word) | (frame_id[plane_id + 1] & 0xFFFF0000)  # TODO: make this nicer
 
                 elif word_index[plane_id] == 3:  # 3. word should have the frame ID low word
-                    frame_id[plane_id] = get_frame_id_low(word) | frame_id[plane_id]
-                    if plane_id == 0:
-                        frame_id[0] = frame_id[plane_id]
+                    frame_id[plane_id + 1] = get_frame_id_low(word) | (frame_id[plane_id + 1] & 0x0000FFFF)
 
                 elif word_index[plane_id] == 4:  # 4. word should have the frame length high word
                     frame_length[plane_id] = get_frame_length(word)
 
                 elif word_index[plane_id] == 5:  # 5. word should have the frame length low word (=high word, one data line, the number of words is repeated 2 times)
                     if frame_length[plane_id] != get_frame_length(word):
-                        add_event_status(plane_id, event_status, EVENT_INCOMPLETE)
+                        add_event_status(plane_id + 1, event_status, EVENT_INCOMPLETE)
 
                 elif word_index[plane_id] == 6 + frame_length[plane_id]:  # Second last word is frame tailer high word
                     if not is_frame_tailer_high(word):
-                        add_event_status(plane_id, event_status, DATA_ERROR)
+                        add_event_status(plane_id + 1, event_status, TAILER_H_ERROR)
 
                 elif word_index[plane_id] == 7 + frame_length[plane_id]:  # First last word is frame tailer low word
                     frame_length[plane_id] = -1
                     n_words[plane_id] = 0
-                    word_index[plane_id] = -1
                     if not is_frame_tailer_low(word, plane=plane_id + 1):
-                        add_event_status(plane_id, event_status, DATA_ERROR)
+                        add_event_status(plane_id + 1, event_status, TAILER_L_ERROR)
 
                 else:  # Column / Row words (actual data word)
-                    if n_words[plane_id] == 0:  # First word containing the row info and the number of data words for this row
+                    if n_words[plane_id] == 0:  # First word contains the row info and the number of data words for this row
                         if word_index[plane_id] == 6 + frame_length[plane_id] - 1:  # Always even amount of words or this fill word is used
-                            add_event_status(plane_id, event_status, UNEVEN_EVENT)
+                            add_event_status(plane_id + 1, event_status, UNEVEN_EVENT)
                         else:
                             n_words[plane_id] = get_n_words(word)
-                            row[plane_id] = get_row(word)
+                            row[plane_id] = get_row(word)  # get row from data word
                         if has_overflow(word):
-                            add_event_status(plane_id, event_status, DATA_ERROR)
+                            add_event_status(plane_id + 1, event_status, MIMOSA_OVERFLOW)
                             n_words[plane_id] = 0
                         if row[plane_id] > 576:  # row overflow
-                            add_event_status(plane_id, event_status, ROW_OVERFLOW)
+                            add_event_status(plane_id + 1, event_status, ROW_ERROR)
                     else:
                         n_words[plane_id] = n_words[plane_id] - 1  # Count down the words
                         n_hits = get_n_hits(word)
-                        column = get_column(word)
+                        column = get_column(word)  # get column from data word
                         if column >= 1152:  # column overflow
-                            add_event_status(plane_id, event_status, COL_OVERFLOW)
+                            add_event_status(plane_id + 1, event_status, COL_ERROR)
                         for k in range(n_hits + 1):
-                            out_trigger_number = 0 if trigger_number < 0 else trigger_number  # Prevent storing negative number in unsigned int
-                            if hit_buffer_index[plane_id] < max_hits_per_event:
-                                # store hits in hit buffer array
-                                hits_buffer[plane_id, hit_buffer_index[plane_id]]['event_number'] = event_number[plane_id]
-                                hits_buffer[plane_id, hit_buffer_index[plane_id]]['trigger_number'] = out_trigger_number
-                                hits_buffer[plane_id, hit_buffer_index[plane_id]]['timestamp'] = timestamp[plane_id]
-                                hits_buffer[plane_id, hit_buffer_index[plane_id]]['plane'] = plane_id +1
-                                hits_buffer[plane_id, hit_buffer_index[plane_id]]['frame'] = frame_id[plane_id]
-                                hits_buffer[plane_id, hit_buffer_index[plane_id]]['column'] = column + k
-                                hits_buffer[plane_id, hit_buffer_index[plane_id]]['row'] = row[plane_id]
-                                hits_buffer[plane_id, hit_buffer_index[plane_id]]['trigger_number_end'] = trigger_number_end[3]
-                                hits_buffer[plane_id, hit_buffer_index[plane_id]]['trigger_number_begin'] = trigger_number_begin[3]
-                                hits_buffer[plane_id, hit_buffer_index[plane_id]]['event_status'] = event_status[plane_id]
-                                hit_buffer_index[plane_id] += 1
+                            if hit_index < max_hits_per_chunk:
+                                # store hits
+                                hits[hit_index]['frame'] = frame_id[plane_id + 1]
+                                hits[hit_index]['plane'] = plane_id + 1
+                                hits[hit_index]['time_stamp'] = timestamp[plane_id + 1]
+                                hits[hit_index]['trigger_number'] = trigger_number
+                                hits[hit_index]['column'] = column + k
+                                hits[hit_index]['row'] = row[plane_id]
+                                hits[hit_index]['event_status'] = event_status[plane_id + 1]
+                                hit_index = hit_index + 1
                             else:
                                 # truncated data
-                                add_event_status(plane_id, event_status, TRUNC_EVENT)
+                                add_event_status(plane_id + 1, event_status, TRUNC_EVENT)
         elif is_trigger_word(word):  # raw data word is TLU word
-            trigger_number_end[0] = get_trigger_number(word, trigger_data_format)
             trigger_number = get_trigger_number(word, trigger_data_format)
-            if trigger_number_begin[0] == 0x7FFFFFFF:
-                trigger_number_begin[0] = trigger_number_end[0]
-#             if True: #(debug & 1) == 1:
-#                 hits[hit_index]['event_number'] = event_number[0]
-#                 hits[hit_index]['trigger_number_begin'] = trigger_number_begin[0]
-#                 hits[hit_index]['timestamp'] = get_trigger_timestamp(word)
-#                 hits[hit_index]['plane'] = 0
-#                 hits[hit_index]['frame'] = frame_id[0]
-#                 hits[hit_index]['column'] = 0
-#                 hits[hit_index]['trigger_number_end'] = trigger_number_end[0]
-#                 hits[hit_index]['trigger_status'] = 1
-#                 hits[hit_index]['event_status'] = 0
-#                 hits[hit_index]['row'] = 0
-#                 hit_index=hit_index+1
-#             ### trigger_timestamp = get_trigger_timestamp(word)  ## TODO compare with timestamp of m26
+            # TODO: what is this? make this nicer
+            timestamp[0] = get_trigger_timestamp(word) | np.uint32(last_timestamp & 0xFFFF8000)
+            tlu_flag = 0
+            # TODO: what is this?
+            if (timestamp[0] - last_timestamp) & 0x8000 == 0x8000:  # if timestamp < ts_pre
+                timestamp[0] = timestamp[0] + np.uint32(0x8000)
+                tlu_flag = 1
 
-    return (hits[:hit_index], frame_id, last_frame_id, frame_length, word_index, n_words, row, hits_buffer, hit_buffer_index,
-            event_status, event_number, trigger_number, trigger_number_begin, trigger_number_end, timestamp)
+            # TODO: make this nicer, what is this??
+            frame_id[0] = last_frame_id + ((timestamp[0] - last_timestamp) & 0x7FFF) / FRAME_UNIT_CYCLE  # artificial frame number (aligned to M26 frames) of TLU word
+            hits[hit_index]['frame'] = frame_id[0]
+            hits[hit_index]['plane'] = 255  # TLU data is indicated with this plane number
+            hits[hit_index]['time_stamp'] = timestamp[0]  # timestamp of TLU word
+            hits[hit_index]['trigger_number'] = trigger_number
+            hits[hit_index]['column'] = tlu_flag
+            hits[hit_index]['row'] = np.uint16(((timestamp[0] - last_timestamp) & 0x7FFF) % FRAME_UNIT_CYCLE)  # number of clock cycles between TLU word timestamp and timestamp of last M26 frame in units of full FRAME_UNIT_CYCLE
+            hits[hit_index]['event_status'] = event_status[0]
+            hit_index = hit_index + 1
+            # TODO: fix event status, something is wrong with overall event status
+            add_event_status(0, event_status, TRG_WORD)
+        else:
+            add_event_status(plane_id, event_status, UNKNOWN_WORD)
+    return (hits[:hit_index], frame_id, last_frame_id, frame_length, word_index, n_words, row,
+            event_status, event_number, trigger_number, timestamp, last_timestamp)
 
 
 class RawDataInterpreter(object):
     ''' Class to convert the raw data chunks to hits'''
 
-    def __init__(self, max_hits_per_event=1000, debug=1, trigger_data_format=0):
-        self.max_hits_per_event = max_hits_per_event
-        self.debug = debug
+    def __init__(self, max_hits_per_chunk=5000000, trigger_data_format=0):
+        self.max_hits_per_chunk = max_hits_per_chunk
         self.trigger_data_format = trigger_data_format
         self.reset()
 
     def reset(self):  # Reset variables
         # Per frame variables
-        self.frame_id = np.zeros(6, np.int32)  # The counter value of the actual frame
-        self.last_frame_id = np.ones(6, np.int32) * -1  # The counter value of the last frame
+        self.frame_id = np.zeros(7, np.uint32)  # The counter value of the actual frame, 6 Mimosa planes + TLU
+        self.last_frame_id = self.frame_id[1]
         self.frame_length = np.ones(6, np.int32) * -1  # The number of data words in the actual frame
-        self.word_index = np.ones(6, np.int32) * -1  # The word index per device of the actual frame
-        self.timestamp = np.ones(6, np.int32) * -1  # The word index per device of the actual frame
+        self.word_index = np.zeros(6, np.int32) * -1  # The word index per device of the actual frame
+        self.timestamp = np.zeros(7, np.uint32)  # The timestamp for each plane (in units of 40 MHz), first index corresponds to TLU word timestamp, last 6 indices are timestamps of M26 frames
+        self.last_timestamp = self.timestamp[1]
         self.n_words = np.zeros(6, np.uint32)  # The number of words containing column / row info
-        self.row = np.ones(6, np.uint32) * 0xffffffff  # the actual readout row (rolling shutter)
+        self.row = np.ones(6, np.int32) * -1  # the actual readout row (rolling shutter)
 
         # Per event variables
-        self.hits_buffer = np.zeros((6, self.max_hits_per_event), dtype=hit_dtype)  # Buffers actual event hits, needed since raw data is analyzed in chunks
-        self.hit_buffer_index = np.zeros(6, np.uint32)  # Hit buffer index for each plane; needed to append hits
-        self.event_status = np.zeros(shape=(6, ), dtype=np.uint16)  # Actual event status for each plane
+        self.tlu_word_index = np.zeros(6, np.uint32)  # TLU buffer index for each plane; needed to append hits
+        self.event_status = np.zeros(shape=(7, ), dtype=np.uint16)  # Actual event status for each plane, 6 Mimosa planes + TLU
         self.event_number = np.ones(6, np.int64) * -1  # The event counter set by the software counting full events for each plane
-        self.trigger_number = -1  # The actual event trigger number
-        self.trigger_number_begin = np.ones(4, np.uint16) * 0xFFFF   # The event trigger number begin
-        self.trigger_number_end = np.ones(4, np.uint16) * 0xFFFF   # The event trigger number end
+        self.trigger_number = 0  # The actual event trigger number
 
     def interpret_raw_data(self, raw_data):
         chunk_result = build_hits(raw_data=raw_data,
@@ -453,16 +347,12 @@ class RawDataInterpreter(object):
                                   word_index=self.word_index,
                                   n_words=self.n_words,
                                   row=self.row,
-                                  hits_buffer=self.hits_buffer,
-                                  hit_buffer_index=self.hit_buffer_index,
                                   event_status=self.event_status,
                                   event_number=self.event_number,
                                   trigger_number=self.trigger_number,
-                                  trigger_number_begin=self.trigger_number_begin,
-                                  trigger_number_end=self.trigger_number_end,
                                   timestamp=self.timestamp,
-                                  max_hits_per_event=self.max_hits_per_event,
-                                  debug=self.debug,
+                                  last_timestamp=self.last_timestamp,
+                                  max_hits_per_chunk=self.max_hits_per_chunk,
                                   trigger_data_format=self.trigger_data_format)
 
         # Set updated buffer variables
@@ -473,14 +363,10 @@ class RawDataInterpreter(object):
          self.word_index,
          self.n_words,
          self.row,
-         self.hits_buffer,
-         self.hit_buffer_index,
          self.event_status,
          self.event_number,
          self.trigger_number,
-         self.trigger_number_being,
-         self.trigger_number_end,
-         self.timestamp) = chunk_result
-         
+         self.timestamp,
+         self.last_timestamp) = chunk_result
 
         return hits
