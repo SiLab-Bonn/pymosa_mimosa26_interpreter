@@ -29,13 +29,14 @@ def fill_occupanc_hist(hist, hits):
 @njit
 def fill_event_status_hist(hist, hits):
     for hit_index in range(hits.shape[0]):
-        if hits[hit_index]['plane'] == 255:
-            pass  # TLU data
-        else:
+        if hits[hit_index]['plane'] == 255:  # TLU data
             for i in range(32):
-                plane_id = hits[hit_index]['plane'] - 1
                 if hits[hit_index]['event_status'] & (0b1 << i):
-                    #print hits[hit_index]['event_status']
+                    hist[0][i] += 1
+        else:  # M26 data
+            for i in range(32):
+                plane_id = hits[hit_index]['plane']
+                if hits[hit_index]['event_status'] & (0b1 << i):
                     hist[plane_id][i] += 1
 
 
@@ -146,7 +147,7 @@ class DataInterpreter(object):
                     self.occupancy_arrays = np.zeros(shape=(6, 1152, 576), dtype=np.int32)  # for each plane
 
                 if self.create_error_hist:
-                    self.event_status_hist = np.zeros(shape=(6, 32), dtype=np.int32)  # for each plane
+                    self.event_status_hist = np.zeros(shape=(7, 32), dtype=np.int32)  # for TLU and each plane
 
                 logging.info("Interpreting...")
                 progress_bar = progressbar.ProgressBar(widgets=['', progressbar.Percentage(), ' ', progressbar.Bar(marker='*', left='|', right='|'), ' ', progressbar.AdaptiveETA()], maxval=in_file_h5.root.raw_data.shape[0], term_width=80)
@@ -168,16 +169,29 @@ class DataInterpreter(object):
                 progress_bar.finish()
 
                 # Add histograms to data file and create plots
-                for plane in range(6):
+                for plane in range(7):
                     logging.info('Store histograms and create plots for plane %d', plane)
-                    occupancy_array = out_file_h5.create_carray(out_file_h5.root, name='HistOcc_plane%d' % plane, title='Occupancy Histogram of Mimosa plane %d' % plane, atom=tb.Atom.from_dtype(self.occupancy_arrays[plane].dtype), shape=self.occupancy_arrays[plane].shape, filters=self._filter_table)
-                    occupancy_array[:] = self.occupancy_arrays[plane]
-                    if self.output_pdf:
-                        plotting.plot_fancy_occupancy(self.occupancy_arrays[plane].T, z_max='median', title='Occupancy for plane %d' % plane, filename=self.output_pdf)
+                    hits = hit_table[:]
 
-                    # plot event status
+                    if plane == 0:  # do not create occupancy map for TLU
+                        n_words = hits[hits['plane'] == 255].shape[0]
+                    else:
+                        # create occupancy map for all Mimosa26 planes
+                        occupancy_array = out_file_h5.create_carray(out_file_h5.root, name='HistOcc_plane%d' % plane,
+                                                                    title='Occupancy Histogram of Mimosa plane %d' % plane,
+                                                                    atom=tb.Atom.from_dtype(self.occupancy_arrays[plane - 1].dtype),
+                                                                    shape=self.occupancy_arrays[plane - 1].shape, filters=self._filter_table)
+                        occupancy_array[:] = self.occupancy_arrays[plane - 1]
+                        if self.output_pdf:
+                            plotting.plot_fancy_occupancy(self.occupancy_arrays[plane - 1].T, z_max='median',
+                                                          title='Occupancy for plane %d' % plane, filename=self.output_pdf)
+                        n_words = hits[hits['plane'] == plane].shape[0]
+
+                    # plot event status histograms
                     try:
-                        plotting.plot_event_status(hist=self.event_status_hist[plane].T, title='Event status for plane %d ($\Sigma = % i$)' % (plane + 1, hit_table.shape[0]), filename=self.output_pdf)
+                        plotting.plot_event_status(hist=self.event_status_hist[plane].T,
+                                                   title='Event status for plane %d ($\Sigma = % i$)' % (plane, n_words),
+                                                   filename=self.output_pdf)
                     except:
                         logging.warning('Could not create event status plot!')
 

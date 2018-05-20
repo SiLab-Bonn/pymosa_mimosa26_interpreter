@@ -199,25 +199,25 @@ def build_hits(raw_data, frame_id, last_frame_id, frame_length, word_index, n_wo
             # Interpret the word of the actual plane
             if is_data_loss(word):
                 # Reset word index and event status for all planes
+                # Note: event_status[0] is TLU event status
                 word_index[0] = -1
-                event_status[0] = 0
-                word_index[1] = -1
                 event_status[1] = 0
-                word_index[2] = -1
+                word_index[1] = -1
                 event_status[2] = 0
-                word_index[3] = -1
+                word_index[2] = -1
                 event_status[3] = 0
-                word_index[4] = -1
+                word_index[3] = -1
                 event_status[4] = 0
-                word_index[5] = -1
+                word_index[4] = -1
                 event_status[5] = 0
+                word_index[5] = -1
+                event_status[6] = 0
             elif is_frame_header_high(word):  # New event for actual plane; events are aligned at this header
                 if plane_id == 0:
                     last_timestamp = timestamp[1]  # timestamp of last M26 frame
                     last_frame_id = frame_id[1]  # last M26 frame number
                 # TODO: what is this
                 timestamp[plane_id + 1] = (timestamp[plane_id + 1] & 0xFFFF0000) | word & 0xFFFF
-                event_status[plane_id] = 0
                 word_index[plane_id] = 0
             elif word_index[plane_id] == -1:  # trash data
                 # TODO: add event status trash data
@@ -309,7 +309,7 @@ def build_hits(raw_data, frame_id, last_frame_id, frame_length, word_index, n_wo
             # TODO: fix event status, something is wrong with overall event status
             add_event_status(0, event_status, TRG_WORD)
         else:
-            add_event_status(plane_id, event_status, UNKNOWN_WORD)
+            add_event_status(0, event_status, UNKNOWN_WORD)
     return (hits[:hit_index], frame_id, last_frame_id, frame_length, word_index, n_words, row,
             event_status, event_number, trigger_number, timestamp, last_timestamp)
 
@@ -335,7 +335,7 @@ class RawDataInterpreter(object):
 
         # Per event variables
         self.tlu_word_index = np.zeros(6, np.uint32)  # TLU buffer index for each plane; needed to append hits
-        self.event_status = np.zeros(shape=(7, ), dtype=np.uint16)  # Actual event status for each plane, 6 Mimosa planes + TLU
+        self.event_status = np.zeros(shape=(7, ), dtype=np.uint16)  # Actual event status for each plane, TLU and 6 Mimosa planes
         self.event_number = np.ones(6, np.int64) * -1  # The event counter set by the software counting full events for each plane
         self.trigger_number = 0  # The actual event trigger number
 
