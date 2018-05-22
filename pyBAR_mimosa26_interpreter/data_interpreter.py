@@ -150,10 +150,8 @@ class DataInterpreter(object):
                     self.event_status_hist = np.zeros(shape=(7, 32), dtype=np.int32)  # for TLU and each plane
 
                 logging.info("Interpreting...")
-                progress_bar = progressbar.ProgressBar(widgets=['', progressbar.Percentage(), ' ', progressbar.Bar(marker='*', left='|', right='|'), ' ', progressbar.AdaptiveETA()], maxval=in_file_h5.root.raw_data.shape[0], term_width=80)
-                progress_bar.start()
-                for word_index in range(0, in_file_h5.root.raw_data.shape[0], self.chunk_size):  # Loop over all words in the actual raw data file in chunks
-                    raw_data_chunk = in_file_h5.root.raw_data.read(word_index, word_index + self.chunk_size)
+                for i in tqdm(range(0, in_file_h5.root.raw_data.shape[0], self.chunk_size)): # Loop over all words in the actual raw data file in chunks
+                    raw_data_chunk = in_file_h5.root.raw_data.read(i, i + self.chunk_size)
                     hits = self._raw_data_interpreter.interpret_raw_data(raw_data_chunk)
 
                     if self.create_hit_table:
@@ -164,9 +162,6 @@ class DataInterpreter(object):
 
                     if self.create_error_hist:
                         fill_event_status_hist(self.event_status_hist, hits)
-
-                    progress_bar.update(word_index)
-                progress_bar.finish()
 
                 # Add histograms to data file and create plots
                 for plane in range(7):
