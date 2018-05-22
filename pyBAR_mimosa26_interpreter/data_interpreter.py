@@ -202,7 +202,6 @@ class DataInterpreter(object):
             raise
         # first step: build events from interpreted hit table for each plane
         for plane in range(1, 7):
-            print self._analyzed_data_file
             self.build_events_from_hit_table(input_file=self._analyzed_data_file,
                                              output_file=self._analyzed_data_file[:-3] + '_event_build_plane_%i.h5' % plane,
                                              plane=plane,
