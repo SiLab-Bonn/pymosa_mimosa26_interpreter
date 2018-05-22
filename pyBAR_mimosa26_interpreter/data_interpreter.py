@@ -4,7 +4,6 @@ import os
 import numpy as np
 import tables as tb
 import logging
-import progressbar
 
 from numba import njit
 from matplotlib.backends.backend_pdf import PdfPages
