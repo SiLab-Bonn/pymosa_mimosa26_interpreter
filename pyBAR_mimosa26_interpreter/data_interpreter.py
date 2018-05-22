@@ -189,9 +189,10 @@ class DataInterpreter(object):
 
                     # plot event status histograms
                     try:
-                        plotting.plot_event_status(hist=self.event_status_hist[plane].T,
-                                                   title='Event status for plane %d ($\Sigma = % i$)' % (plane, n_words),
-                                                   filename=self.output_pdf)
+                        if self.output_pdf:
+                            plotting.plot_event_status(hist=self.event_status_hist[plane].T,
+                                                       title='Event status for plane %d ($\Sigma = % i$)' % (plane, n_words),
+                                                       filename=self.output_pdf)
                     except:
                         logging.warning('Could not create event status plot!')
 
