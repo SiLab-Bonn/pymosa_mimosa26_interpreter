@@ -39,11 +39,10 @@ def _correlate_range(m26_ts_start, m26_ts_stop, ts_trigger_data, correlation_buf
                     break  # M26 timestamp start is larger than trigger timestamp
 
             if ts_start_index + 1 == m26_ts_start[m26_ts_index:].shape[0] and last_chunk:  # TODO: what is this
-                print 'WARNING: last chunk is too small!'
+                print('WARNING: last chunk is too small!')
                 return correlation_buffer[:buffer_index], m26_ts_index, trigger_data_ts_index
             if correlation_buffer.shape[0] - buffer_index < ts_start_index:  # TODO: what is this?
-                print correlation_buffer.shape[0], buffer_index, ts_start_index
-                print 'WARNING: chunksize for correlation buffer is too small!'
+                print('WARNING: chunksize for correlation buffer is too small!')
                 return correlation_buffer[:buffer_index], m26_ts_index, trigger_data_ts_index
 
             # correlate
@@ -60,10 +59,10 @@ def _correlate_range(m26_ts_start, m26_ts_stop, ts_trigger_data, correlation_buf
 
     # TODO: make this nicer
     if trigger_data_ts_index < n_ts_trigger_data:
-        print 'WARNING: not enough trigger data in chunk!'
+        print('WARNING: not enough trigger data in chunk!')
         return correlation_buffer[:buffer_index], m26_ts_index, trigger_data_ts_index
     elif m26_ts_index < n_m26_ts_start:
-        print 'WARNING: not enough M26 data in chunk!'
+        print('WARNING: not enough M26 data in chunk!')
         return correlation_buffer[:buffer_index], m26_ts_index, trigger_data_ts_index
 
 
@@ -94,7 +93,7 @@ def _correlate(m26_trig_number, ref_trig_number, correlation_buffer, mask=0x4000
             if ref_trig_number[ref_index] == ref_trig_number_value:
                 ref_trig_number_index = ref_trig_number_index + 1
             if correlation_buffer.shape[0] - buffer_index <= m26_trig_number_index * ref_trig_number_index:
-                print 'WARNING: chunksize for correlation buffer is too small!'
+                print('WARNING: chunksize for correlation buffer is too small!')
                 return correlation_buffer[:buffer_index], m26_index, ref_index
 
             for index in range(m26_trig_number_index):
@@ -107,10 +106,10 @@ def _correlate(m26_trig_number, ref_trig_number, correlation_buffer, mask=0x4000
             ref_index = ref_index + ref_trig_number_index
 
     if ref_index < n_ref_trig_number:
-        print 'WARNING: not enough time reference data in chunk!'
+        print('WARNING: not enough time reference data in chunk!')
         return correlation_buffer[:buffer_index], m26_index, ref_index
     elif m26_index < n_m26_trig_number:
-        print 'WARNING: not enough M26 data in chunk!'
+        print('WARNING: not enough M26 data in chunk!')
         return correlation_buffer[:buffer_index], m26_index, ref_index
     return correlation_buffer[:buffer_index], m26_index, ref_index
 
@@ -156,7 +155,7 @@ class EventBuilder(object):
         try:
             len(trigger_data_timestamp)
         except TypeError:
-            print 'Please choose larger chunksize!'
+            print('Please choose larger chunksize!')
             raise
 
         correlation_buffer, m26_index, trigger_data_index = _correlate_range(m26_timestamp_start,
