@@ -38,10 +38,10 @@ def _correlate_range(m26_ts_start, m26_ts_stop, ts_trigger_data, correlation_buf
                 if ts_start_value > ts_trigger_data[trigger_data_ts_index]:
                     break  # M26 timestamp start is larger than trigger timestamp
 
-            if ts_start_index + 1 == m26_ts_start[m26_ts_index:].shape[0] and last_chunk:  # TODO: what is this
-                print('WARNING: last chunk is too small!')
+            if ts_start_index + 1 == m26_ts_start[m26_ts_index:].shape[0] and not last_chunk:
+                print('WARNING: not enough M26 data in chunk!')
                 return correlation_buffer[:buffer_index], m26_ts_index, trigger_data_ts_index
-            if correlation_buffer.shape[0] - buffer_index < ts_start_index:  # TODO: what is this?
+            if correlation_buffer.shape[0] - buffer_index < ts_start_index:
                 print('WARNING: chunksize for correlation buffer is too small!')
                 return correlation_buffer[:buffer_index], m26_ts_index, trigger_data_ts_index
 
