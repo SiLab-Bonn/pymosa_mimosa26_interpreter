@@ -1,6 +1,5 @@
 numba
 numpy
 tables
-progressbar-latest
 matplotlib
 tqdm
