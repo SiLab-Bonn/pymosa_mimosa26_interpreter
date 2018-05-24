@@ -97,9 +97,9 @@ def _correlate(m26_trig_number, ref_trig_number, correlation_buffer, mask=0x4000
                 return correlation_buffer[:buffer_index], m26_index, ref_index
 
             for index in range(m26_trig_number_index):
-                correlation_buffer[buffer_index]["idx1"] = m26_index + index
-                correlation_buffer[buffer_index]["idx2"] = ref_index
-                correlation_buffer[buffer_index]["id"] = ref_trig_number[ref_index]
+                correlation_buffer[buffer_index]["m26_data_index"] = m26_index + index  # M26 data index
+                correlation_buffer[buffer_index]["time_ref_data_index"] = ref_index  # time reference data index
+                correlation_buffer[buffer_index]["trg_number_time_ref"] = ref_trig_number[ref_index]  # trigger number of time reference
                 buffer_index = buffer_index + 1
 
             m26_index = m26_index + m26_trig_number_index
@@ -126,7 +126,7 @@ class EventBuilder(object):
         self.hit_data_dtype = [('frame', '<u4'), ('time_stamp', '<u4'), ('column', '<u2'), ('row', '<u2')]
         self.correlation_buffer_dtype = [("m26_ts_start", "<i8"), ("m26_ts_stop", "<i8"), ("ts_trigger_data", "<i8"),
                                          ("m26_index", "<u8"), ("trigger_data_index", "<u8")]
-        self.correlation_buffer_time_ref_dtype = [("id", "<u8"), ("idx1", "<u8"), ("idx2", "<u8")]
+        self.correlation_buffer_time_ref_dtype = [("trg_number_time_ref", "<u8"), ("m26_data_index", "<u8"), ("time_ref_data_index", "<u8")]
         # reset all variables
         self.reset()
 
@@ -182,7 +182,7 @@ class EventBuilder(object):
                                               reference_data["trigger_number"],
                                               correlation_buffer)
 
-        m26_data = m26_data[correlation_buffer["idx1"]]
+        m26_data = m26_data[correlation_buffer["m26_data_index"]]
         hit_buffer = np.empty(len(m26_data), dtype=self.aligned_dtype)
 
         # TODO: make separat format hit table for TBA step
@@ -195,7 +195,7 @@ class EventBuilder(object):
 
         hit_buffer[:len(m26_data)]['frame'] = np.zeros(len(m26_data), dtype=np.uint8)
         hit_buffer[:len(m26_data)]['charge'] = np.ones(len(m26_data), dtype=np.uint16)
-        hit_buffer[:len(m26_data)]['event_number'] = reference_data[correlation_buffer["idx2"]]['event_number']
+        hit_buffer[:len(m26_data)]['event_number'] = reference_data[correlation_buffer["time_ref_data_index"]]['event_number']
 
         return hit_buffer[:len(m26_data)], correlation_buffer
 
