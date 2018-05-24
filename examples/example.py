@@ -1,4 +1,6 @@
 '''Example how to use the M26 data interpreter. A hit table is created from raw data, additionally events are build using the TLU data words.
+The example raw data file was taken with pyBAR, thats why also FE-I4 data is included in the raw data and the event status for the TLU
+displays unkown_words (FE-I4 words, only M26 and TLU data is expected in the raw data).
 '''
 
 import logging
@@ -47,10 +49,10 @@ def process_dut(raw_data_file, time_reference_file, trigger_data_format):
 
 if __name__ == "__main__":
     # specify M26 raw data files
-    raw_data_files = [r'/home/silab/git/pyBAR_mimosa26_interpreter_dev/examples/anemone_raw_data.h5'
+    raw_data_files = [r'./anemone_raw_data.h5'
                       ]
     # specify aligned time reference data files
-    time_reference_files = [r'/home/silab/git/pyBAR_mimosa26_interpreter_dev/examples/time_reference_interpreted_data.h5'
+    time_reference_files = [r'./time_reference_interpreted_data.h5'
                             ]
 
     trigger_data_format = 2  # use combined mode for raw data interpretation, this is the only supported format
