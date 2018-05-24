@@ -183,21 +183,22 @@ class EventBuilder(object):
                                               correlation_buffer)
 
         m26_data = m26_data[correlation_buffer["m26_data_index"]]
-        hit_buffer = np.empty(len(m26_data), dtype=self.aligned_dtype)
+        hit_buffer = np.empty(m26_data.shape[0], dtype=self.aligned_dtype)
 
         # TODO: make separat format hit table for TBA step
         if transpose is True:
-            hit_buffer[:len(m26_data)]['row'] = 1 + m26_data['column']
-            hit_buffer[:len(m26_data)]['column'] = 1 + m26_data['row']
+            # switch column and row
+            hit_buffer['row'] = m26_data['column'] + 1
+            hit_buffer['column'] = m26_data['row'] + 1
         else:
-            hit_buffer[:len(m26_data)]['column'] = 1 + m26_data['column']
-            hit_buffer[:len(m26_data)]['row'] = 1 + m26_data['row']
+            hit_buffer['column'] = m26_data['column'] + 1
+            hit_buffer['row'] = m26_data['row'] + 1
 
-        hit_buffer[:len(m26_data)]['frame'] = np.zeros(len(m26_data), dtype=np.uint8)
-        hit_buffer[:len(m26_data)]['charge'] = np.ones(len(m26_data), dtype=np.uint16)
-        hit_buffer[:len(m26_data)]['event_number'] = reference_data[correlation_buffer["time_ref_data_index"]]['event_number']
+        hit_buffer['frame'] = np.zeros(len(m26_data), dtype=np.uint8)
+        hit_buffer['charge'] = np.ones(len(m26_data), dtype=np.uint16)
+        hit_buffer['event_number'] = reference_data[correlation_buffer["time_ref_data_index"]]['event_number']
 
-        return hit_buffer[:len(m26_data)], correlation_buffer
+        return hit_buffer, correlation_buffer
 
     def build_events(self, hits, plane, last_chunk):
         chunk_result = self.build_events_loop(hits=hits,
@@ -218,8 +219,8 @@ class EventBuilder(object):
 
     def correlate_to_time_ref(self, m26_data, reference_data, transpose):
         chunk_result = self.correlate_to_time_ref_loop(m26_data=m26_data,
-                                                       reference_data=reference_data, 
-                                                       correlation_buffer=self.correlation_buffer_time_ref, 
+                                                       reference_data=reference_data,
+                                                       correlation_buffer=self.correlation_buffer_time_ref,
                                                        transpose=transpose)
 
         (hit_data_out, self.correlation_buffer_time_ref) = chunk_result
