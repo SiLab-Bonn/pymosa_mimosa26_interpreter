@@ -175,10 +175,12 @@ def build_hits(raw_data, frame_id, last_frame_id, frame_length, word_index, n_wo
         The timestamp read from mimosa header
     max_hits_per_chunk : number
         Maximum expected hits per chunk. Needed to allocate hit array.
-    trigger_data_format : int
-        0: TLU word is trigger number
-        1: TLU word is timestamp
+    trigger_data_format : integer
+        Number which indicates the used trigger data format.
+        0: TLU word is trigger number (not supported)
+        1: TLU word is timestamp (not supported)
         2: TLU word is 15 bit timestamp + 16 bit trigger number
+        Only trigger data format 2 is supported, since the event building requires a trigger timestamp in order to work reliably.
 
     Returns
     -------

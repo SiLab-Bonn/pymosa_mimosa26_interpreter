@@ -115,6 +115,7 @@ def _correlate_to_time_ref(m26_trig_number, ref_trig_number, correlation_buffer)
     elif m26_index < n_m26_trig_number:
         print('WARNING: not enough M26 data in chunk!')
         return correlation_buffer[:buffer_index], m26_index, ref_index
+
     return correlation_buffer[:buffer_index], m26_index, ref_index
 
 

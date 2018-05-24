@@ -1,5 +1,7 @@
-''' Class to convert Mimosa 26 raw data recorded with pyBAR to hit maps.
+''' Class to convert Mimosa26 raw data recorded with pymosa to hit maps.
+    Additional, events can be build from the hit table using the TLU data words and time reference data.
 '''
+
 import os
 import numpy as np
 import tables as tb
@@ -42,7 +44,7 @@ def fill_event_status_hist(hist, hits):
 class DataInterpreter(object):
     ''' Class to provide an easy to use interface to encapsulate the interpretation process.'''
 
-    def __init__(self, raw_data_file, time_reference_file=None, analyzed_data_file=None, create_pdf=True, chunk_size=100000000, trigger_data_format=2):
+    def __init__(self, raw_data_file, time_reference_file=None, analyzed_data_file=None, create_pdf=True, trigger_data_format=2, chunk_size=100000000):
         '''
         Parameters
         ----------
@@ -53,6 +55,12 @@ class DataInterpreter(object):
             Does not have to be set.
         create_pdf : boolean
             Creates interpretation plots into one PDF file.
+        trigger_data_format : integer
+            Number which indicates the used trigger data format.
+            0: TLU word is trigger number (not supported)
+            1: TLU word is timestamp (not supported)
+            2: TLU word is 15 bit timestamp + 16 bit trigger number
+            Only trigger data format 2 is supported, since the event building requires a trigger timestamp in order to work reliably.
         chunk_size : integer
             How many raw data words are analyzed at once in RAM. Limited by available RAM. Faster
             interpretation for larger numbers. RAM needed is approximately 10 * chunk_size in bytes.
