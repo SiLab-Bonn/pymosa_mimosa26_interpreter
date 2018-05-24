@@ -67,7 +67,7 @@ def _correlate_ts_to_range(m26_ts_start, m26_ts_stop, ts_trigger_data, correlati
 
 
 @njit
-def _correlate_to_time_ref(m26_trig_number, ref_trig_number, correlation_buffer, mask=0x4000):
+def _correlate_to_time_ref(m26_trig_number, ref_trig_number, correlation_buffer):
     '''
     Correlate data for which M26 and time reference trigger number is the same.
     '''
@@ -80,10 +80,10 @@ def _correlate_to_time_ref(m26_trig_number, ref_trig_number, correlation_buffer,
 
     while m26_index < n_m26_trig_number and ref_index < n_ref_trig_number:
         # TODO: make this nicer, this is shit!
-        if ((m26_trig_number[m26_index] - ref_trig_number[ref_index]) & mask) == mask:
-            m26_index = m26_index + 1
-        elif ((ref_trig_number[ref_index] - m26_trig_number[m26_index]) & mask) == mask:
-            ref_index = ref_index + 1
+        if m26_trig_number[m26_index] < ref_trig_number[ref_index]:
+            m26_index += 1
+        elif ref_trig_number[ref_index] < m26_trig_number[m26_index]:
+            ref_index += 1
         else:  # m26_trig_number[m26_index]==ref_trig_number[ref_index]
             # trigger numbers are the same, TODO: check this!
             for m26_trig_number_index, m26_trig_number_value in enumerate(m26_trig_number[m26_index:]):
