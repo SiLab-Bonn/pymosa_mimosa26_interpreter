@@ -79,7 +79,6 @@ def _correlate_to_time_ref(m26_trig_number, ref_trig_number, correlation_buffer)
     n_ref_trig_number = ref_trig_number.shape[0]
 
     while m26_index < n_m26_trig_number and ref_index < n_ref_trig_number:
-        # TODO: make this nicer, this is shit!
         if m26_trig_number[m26_index] < ref_trig_number[ref_index]:
             m26_index += 1
         elif ref_trig_number[ref_index] < m26_trig_number[m26_index]:
