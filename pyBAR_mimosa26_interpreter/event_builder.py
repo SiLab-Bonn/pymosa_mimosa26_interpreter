@@ -27,13 +27,11 @@ def _correlate_ts_to_range(m26_ts_start, m26_ts_stop, ts_trigger_data, correlati
     while m26_ts_index < n_m26_ts_start and trigger_data_ts_index < n_ts_trigger_data:
         # find trigger data timestamp which lies iwthin timestamp start and stop of M26
         if m26_ts_start[m26_ts_index] > ts_trigger_data[trigger_data_ts_index]:
-            trigger_data_ts_index = trigger_data_ts_index + 1
+            trigger_data_ts_index += 1
         elif m26_ts_stop[m26_ts_index] < ts_trigger_data[trigger_data_ts_index]:
-            m26_ts_index = m26_ts_index + 1
+            m26_ts_index += 1
         else:  # the case trigger data timestamo lies within start and stop M26 timestamp window
-
             # find point where M26 start timestamp equals trigger data timestamp
-            # TODO: this step could be done much nicer!
             for ts_start_index, ts_start_value in enumerate(m26_ts_start[m26_ts_index:]):
                 if ts_start_value > ts_trigger_data[trigger_data_ts_index]:
                     break  # M26 timestamp start is larger than trigger timestamp
@@ -54,8 +52,8 @@ def _correlate_ts_to_range(m26_ts_start, m26_ts_stop, ts_trigger_data, correlati
                     correlation_buffer[buffer_index]["m26_ts_start"] = m26_ts_start[m26_ts_index + index]
                     correlation_buffer[buffer_index]["m26_ts_stop"] = m26_ts_stop[m26_ts_index + index]
                     correlation_buffer[buffer_index]["ts_trigger_data"] = ts_trigger_data[trigger_data_ts_index]
-                    buffer_index = buffer_index + 1
-            trigger_data_ts_index = trigger_data_ts_index + 1
+                    buffer_index += 1
+            trigger_data_ts_index += 1
 
     # TODO: make this nicer
     if trigger_data_ts_index < n_ts_trigger_data:
@@ -83,28 +81,30 @@ def _correlate_to_time_ref(m26_trig_number, ref_trig_number, correlation_buffer)
             m26_index += 1
         elif ref_trig_number[ref_index] < m26_trig_number[m26_index]:
             ref_index += 1
-        else:  # m26_trig_number[m26_index]==ref_trig_number[ref_index]
-            # trigger numbers are the same, TODO: check this!
+        else:  # The case if M26 and time reference trigger number is the same
+            # get m26_index upto where M26 trigger number stays the same
             for m26_trig_number_index, m26_trig_number_value in enumerate(m26_trig_number[m26_index:]):
                 if m26_trig_number[m26_index] != m26_trig_number_value:
                     break
+            # get ref_index upto where time reference trigger number stays the same
             for ref_trig_number_index, ref_trig_number_value in enumerate(ref_trig_number[ref_index:]):
                 if ref_trig_number[ref_index] != ref_trig_number_value:
                     break
 
             if m26_trig_number[m26_index] == m26_trig_number_value:
-                m26_trig_number_index = m26_trig_number_index + 1
+                m26_trig_number_index += 1
             if ref_trig_number[ref_index] == ref_trig_number_value:
-                ref_trig_number_index = ref_trig_number_index + 1
+                ref_trig_number_index += 1
             if correlation_buffer.shape[0] - buffer_index <= m26_trig_number_index * ref_trig_number_index:
                 print('WARNING: chunksize for correlation buffer is too small!')
                 return correlation_buffer[:buffer_index], m26_index, ref_index
 
+            # correlate
             for index in range(m26_trig_number_index):
                 correlation_buffer[buffer_index]["m26_data_index"] = m26_index + index  # M26 data index
                 correlation_buffer[buffer_index]["time_ref_data_index"] = ref_index  # time reference data index
                 correlation_buffer[buffer_index]["trg_number_time_ref"] = ref_trig_number[ref_index]  # trigger number of time reference
-                buffer_index = buffer_index + 1
+                buffer_index += 1
 
             m26_index = m26_index + m26_trig_number_index
             ref_index = ref_index + ref_trig_number_index
