@@ -22,23 +22,23 @@ class TestInterpretation(unittest.TestCase):
 
     @classmethod
     def tearDownClass(self):  # Remove created files
-        os.remove(tests_data_folder + r'/anemone_raw_data_interpreted.h5')
+        os.remove(os.path.join(tests_data_folder, 'anemone_raw_data_interpreted.h5'))
         for plane in range(1, 7):
-            os.remove(tests_data_folder + r'/anemone_raw_data_interpreted_event_build_plane_%i.h5' % plane)
-            os.remove(tests_data_folder + r'/anemone_raw_data_interpreted_event_build_aligned_plane_%i.h5' % plane)
+            os.remove(os.path.join(tests_data_folder, 'anemone_raw_data_interpreted_event_build_plane_%i.h5' % plane))
+            os.remove(os.path.join(tests_data_folder, 'anemone_raw_data_interpreted_event_build_aligned_plane_%i.h5' % plane))
 
     def test_interpretation(self):
-        input_file = tests_data_folder + r'/anemone_raw_data.h5'
-        time_reference_file = tests_data_folder + r'/time_reference_interpreted_data.h5'
+        input_file = os.path.join(tests_data_folder, 'anemone_raw_data.h5')
+        time_reference_file = os.path.join(tests_data_folder, 'time_reference_interpreted_data.h5')
         with data_interpreter.DataInterpreter(raw_data_file=input_file, time_reference_file=time_reference_file, trigger_data_format=2, create_pdf=False) as raw_data_analysis:
             raw_data_analysis.create_hit_table = True
             raw_data_analysis.interpret_word_table()
             raw_data_analysis.interpret_hit_table()
 
-        with tb.open_file(tests_data_folder + r'/anemone_raw_data_interpreted_orig.h5', 'r') as in_file_h5_orig:
+        with tb.open_file(os.path.join(tests_data_folder, 'anemone_raw_data_interpreted_orig.h5'), 'r') as in_file_h5_orig:
             data_orig = in_file_h5_orig.root.Hits[:]
 
-        with tb.open_file(tests_data_folder + r'/anemone_raw_data_interpreted.h5', 'r') as in_file_h5:
+        with tb.open_file(os.path.join(tests_data_folder, 'anemone_raw_data_interpreted.h5'), 'r') as in_file_h5:
             data = in_file_h5.root.Hits[:]
 
         # Hits are sorted differently per plane and field names are completely different, thus loop and selection is needed
@@ -60,13 +60,13 @@ class TestInterpretation(unittest.TestCase):
             np.testing.assert_array_equal(row_orig, row, err_msg='Row array mismatch for plane: %d' % (plane))
 
         # Test some columns of interpreted event table
-        with tb.open_file(tests_data_folder + r'/anemone_raw_data_interpreted_event_build_plane_1_orig.h5', 'r') as in_file_h5_orig:
+        with tb.open_file(os.path.join(tests_data_folder, 'anemone_raw_data_interpreted_event_build_plane_1_orig.h5'), 'r') as in_file_h5_orig:
             data_orig = in_file_h5_orig.root.Hits[:]
             event_number_orig = data_orig['event_number']
             trg_number_orig = data_orig['trigger_number']
             m26_timestamp_orig = data_orig['m_timestamp']
 
-        with tb.open_file(tests_data_folder + r'/anemone_raw_data_interpreted_event_build_plane_1.h5', 'r') as in_file_h5:
+        with tb.open_file(os.path.join(tests_data_folder, 'anemone_raw_data_interpreted_event_build_plane_1.h5'), 'r') as in_file_h5:
             data = in_file_h5.root.Hits[:]
             event_number = data['event_number']
             trg_number = data['trigger_number']
