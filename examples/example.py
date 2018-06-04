@@ -94,7 +94,7 @@ def format_hit_table(input_file, output_file, transpose=False, frame=False, chun
                     hits_formatted['column'] = m26_data['column'] + 1
                     hits_formatted['row'] = m26_data['row'] + 1
 
-                hits_formatted['charge'] = 0
+                hits_formatted['charge'] = 1
 
                 hit_table_out.append(hits_formatted)
                 hit_table_out.flush()
