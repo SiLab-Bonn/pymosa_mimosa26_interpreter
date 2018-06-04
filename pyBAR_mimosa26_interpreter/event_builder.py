@@ -123,8 +123,6 @@ class EventBuilder(object):
     ''' Class to convert M26 hit table into events'''
 
     def __init__(self):
-        self.aligned_dtype = np.dtype([('event_number', '<i8'), ('frame', 'u1'),
-                                       ('column', '<u2'), ('row', '<u2'), ('charge', '<u2')])
         self.event_table_dtype = [('event_number', '<i8'), ('event_timestamp', '<u4'), ('trigger_number', '<u4'), ('frame', "<u4"),
                                   ('m26_timestamp', '<u4'), ("column", '<u2'), ("row", '<u4'), ("tlu_y", '<u4'), ('tlu_frame', "<u4")]
         self.trigger_data_dtype = [('frame', '<u4'), ('time_stamp', '<u4'), ('trigger_number', '<u2'), ('row', '<u2')]
@@ -190,7 +188,7 @@ class EventBuilder(object):
 
         return hit_data_out, hit_data, trigger_data, m26_index, trigger_data_index, event_number, correlation_buffer
 
-    def align_with_time_ref_loop(self, m26_data, reference_data, correlation_buffer, transpose):
+    def align_with_time_ref_loop(self, m26_data, reference_data, correlation_buffer):
         '''
         Loop function for time alignment of M26 data to time reference data.
         '''
@@ -200,20 +198,8 @@ class EventBuilder(object):
                                                           reference_data["trigger_number"],
                                                           correlation_buffer)
 
-        m26_data = m26_data[correlation_buffer["m26_data_index"]]
-        hit_buffer = np.empty(m26_data.shape[0], dtype=self.aligned_dtype)
+        hit_buffer = m26_data[correlation_buffer["m26_data_index"]]
 
-        # TODO: make separat format hit table for TBA step
-        if transpose is True:
-            # switch column and row
-            hit_buffer['row'] = m26_data['column'] + 1
-            hit_buffer['column'] = m26_data['row'] + 1
-        else:
-            hit_buffer['column'] = m26_data['column'] + 1
-            hit_buffer['row'] = m26_data['row'] + 1
-
-        hit_buffer['frame'] = np.zeros(len(m26_data), dtype=np.uint8)
-        hit_buffer['charge'] = np.ones(len(m26_data), dtype=np.uint16)
         # Take event number of time reference data
         hit_buffer['event_number'] = reference_data[correlation_buffer["time_ref_data_index"]]['event_number']
 
@@ -242,7 +228,7 @@ class EventBuilder(object):
 
         return hit_data_out
 
-    def align_with_time_ref(self, m26_data, reference_data, transpose):
+    def align_with_time_ref(self, m26_data, reference_data):
         '''
         Align M26 data with time reference data. In this step the event number of M26 data is corrected by using
         the event number of the time reference data based on the same trigger number. Further, only M26 data is stored
@@ -251,8 +237,7 @@ class EventBuilder(object):
 
         chunk_result = self.align_with_time_ref_loop(m26_data=m26_data,
                                                      reference_data=reference_data,
-                                                     correlation_buffer=self.correlation_buffer_time_ref,
-                                                     transpose=transpose)
+                                                     correlation_buffer=self.correlation_buffer_time_ref)
 
         (hit_data_out, self.correlation_buffer_time_ref) = chunk_result
 

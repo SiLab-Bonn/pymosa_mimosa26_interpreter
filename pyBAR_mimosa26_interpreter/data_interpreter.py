@@ -202,7 +202,7 @@ class DataInterpreter(object):
                     except:
                         logging.warning('Could not create event status plot!')
 
-    def interprete_hit_table(self):
+    def interpret_hit_table(self):
         if self._time_reference_file is None:
             logging.error('No data file for time reference plane specified. Cannot build events from hit table!')
             raise
@@ -221,7 +221,6 @@ class DataInterpreter(object):
             self.align_with_time_reference(input_file=self._analyzed_data_file[:-3] + '_event_build_plane_%i.h5' % plane,
                                            input_file_time_reference=self._time_reference_file,
                                            output_file=self._analyzed_data_file[:-3] + '_event_build_aligned_plane_%i.h5' % plane,
-                                           transpose=False,
                                            chunk_size=1000000)
 
     def build_events_from_hit_table(self, input_file, output_file, plane, chunk_size=10000000):
@@ -256,7 +255,7 @@ class DataInterpreter(object):
                     hit_table_out.append(hit_data_out)
                     hit_table_out.flush()
 
-    def align_with_time_reference(self, input_file, input_file_time_reference, output_file, transpose=False, chunk_size=1000000):
+    def align_with_time_reference(self, input_file, input_file_time_reference, output_file, chunk_size=1000000):
         '''
         Align M26 data with time reference data.
         '''
@@ -266,18 +265,18 @@ class DataInterpreter(object):
             reference_data = hit_table_time_reference[["event_number", "trigger_number"]]
 
         with tb.open_file(output_file, 'w') as out_file_h5:
-            description = np.zeros((1, ), dtype=self._event_builder.aligned_dtype).dtype
+            description = np.zeros((1, ), dtype=self._event_builder.event_table_dtype).dtype
             hit_table_out = out_file_h5.create_table(out_file_h5.root, name='Hits',
-                                                     description=description, title='hit_data')
+                                                     description=description, title='hit_data',
+                                                     filters=tb.Filters(complib='blosc', complevel=5, fletcher32=False))
 
             with tb.open_file(input_file, 'r') as in_file_h5:
                 m26_hit_table = in_file_h5.root.Hits[:]
                 n_m26 = m26_hit_table.shape[0]
                 for i in tqdm(range(0, n_m26, chunk_size)):
-                    m26_data = m26_hit_table[i:i + chunk_size][["column", "row", 'trigger_number']]
+                    m26_data = m26_hit_table[i:i + chunk_size]
                     hit_buffer = self._event_builder.align_with_time_ref(m26_data,
-                                                                         reference_data,
-                                                                         transpose)
+                                                                         reference_data)
 
                     hit_table_out.append(hit_buffer)
                     hit_table_out.flush()
