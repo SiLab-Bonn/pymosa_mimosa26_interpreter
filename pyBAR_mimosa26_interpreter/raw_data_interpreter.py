@@ -22,7 +22,7 @@ import numpy as np
 FRAME_UNIT_CYCLE = 4608  # time for one frame in units of 40 MHz clock cylces
 
 hit_dtype = np.dtype([('plane', '<u1'), ('frame', '<u4'), ('time_stamp', '<u4'), ('trigger_number', '<u2'),
-                      ('column', '<u2'), ('row', '<u2'),  ('event_status', '<u2')])
+                      ('column', '<u2'), ('row', '<u2'), ('event_status', '<u2')])
 tlu_dtype = np.dtype([('event_number', '<i8'), ('trigger_number', '<i4'), ('frame', '<u4')])
 
 # Event error codes

@@ -138,7 +138,7 @@ class EventBuilder(object):
         self.reset()
 
     def reset(self):
-        self.event_number = 0  # TODO: make this nicer
+        self.event_number = 0
         self.trigger_data = np.empty(0, dtype=self.trigger_data_dtype)
         self.hit_data = np.empty(0, dtype=self.hit_data_dtype)
         # TODO: do not hardcode chunksize
@@ -150,10 +150,11 @@ class EventBuilder(object):
         Loop function for event building.
         '''
 
-        # TODO: make this nicer
-        trigger_data = np.append(trigger_data, hits[hits["plane"] == 255][["frame", "time_stamp", "trigger_number", "row"]])
-        # TODO: column selection needed here?
-        hit_data = np.append(hit_data, hits[np.logical_and(hits["plane"] == plane, hits["column"] < 1152)][["frame", "time_stamp", "column", "row"]])
+        tlu_data_selection = [hits["plane"] == 255]
+        trigger_data = np.append(trigger_data, hits[tlu_data_selection][["frame", "time_stamp", "trigger_number", "row"]])
+
+        m26_data_selection = np.logical_and(hits["plane"] == plane, hits["column"] < 1152)
+        hit_data = np.append(hit_data, hits[m26_data_selection][["frame", "time_stamp", "column", "row"]])
 
         # calculate for each row the actual start timestamp of this specific row readout using the frame of the readout and the row number
         m26_timestamp_start = np.int64(hit_data["frame"]) * FRAME_UNIT_CYCLE + np.int64(hit_data["row"]) * ROW_UNIT_CYCLE - 2 * FRAME_UNIT_CYCLE - LOWER_LIMIT
@@ -163,13 +164,11 @@ class EventBuilder(object):
         trigger_data_timestamp = np.int64(trigger_data['frame']) * FRAME_UNIT_CYCLE + np.int64(trigger_data["row"])
 
         # if chunksize is too small, it can happen that no TLU word is collected within data chunk.
-        # In this case buffer_index is empty and has no length
-        # TODO: check better
         try:
             len(trigger_data_timestamp)
         except TypeError:
-            print('Please choose larger chunksize!')
-            raise
+            # trigger_data_timestamp is empty
+            print('WARNING: No trigger words in data found. Please choose larger chunksize!')
 
         # correlate trigger timestamp to M26 timestamp start and stop range
         correlation_buffer, m26_index, trigger_data_index = _correlate_ts_to_range(m26_timestamp_start,

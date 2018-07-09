@@ -160,7 +160,7 @@ class DataInterpreter(object):
                 if self.create_error_hist:
                     self.event_status_hist = np.zeros(shape=(7, 32), dtype=np.int32)  # for TLU and each plane
 
-                logging.info("Interpreting...")
+                logging.info("Interpreting raw data...")
                 for i in tqdm(range(0, in_file_h5.root.raw_data.shape[0], self.chunk_size)):  # Loop over all words in the actual raw data file in chunks
                     raw_data_chunk = in_file_h5.root.raw_data.read(i, i + self.chunk_size)
                     hits = self._raw_data_interpreter.interpret_raw_data(raw_data_chunk)
@@ -176,13 +176,13 @@ class DataInterpreter(object):
 
                 # Add histograms to data file and create plots
                 for plane in range(7):
-                    logging.info('Store histograms and create plots for plane %d', plane)
                     hits = hit_table[:]
-
                     if plane == 0:  # do not create occupancy map for TLU
+                        logging.info('Store histograms and create plots for TLU')
                         n_words = hits[hits['plane'] == 255].shape[0]
                     else:
                         # create occupancy map for all Mimosa26 planes
+                        logging.info('Store histograms and create plots for plane %d', plane)
                         occupancy_array = out_file_h5.create_carray(out_file_h5.root, name='HistOcc_plane%d' % plane,
                                                                     title='Occupancy Histogram of Mimosa plane %d' % plane,
                                                                     atom=tb.Atom.from_dtype(self.occupancy_arrays[plane - 1].dtype),
@@ -212,16 +212,16 @@ class DataInterpreter(object):
             raise
 
         # First step: build events from interpreted hit table for each plane
-        logging.info("Building events...")
         for plane in range(1, 7):
+            logging.info("Building events for plane %i...", plane)
             self.build_events_from_hit_table(input_file=self._analyzed_data_file,
                                              output_file=self._analyzed_data_file[:-3] + '_event_build_plane_%i.h5' % plane,
                                              plane=plane,
                                              chunk_size=self.chunk_size)
 
-        # second step: align events with time reference plane
-        logging.info("Aligning data with time reference...")
+        # Second step: align events with time reference plane
         for plane in range(1, 7):
+            logging.info("Aligning data of plane %i with time reference...", plane)
             self.align_with_time_reference(input_file=self._analyzed_data_file[:-3] + '_event_build_plane_%i.h5' % plane,
                                            input_file_time_reference=self._time_reference_file,
                                            output_file=self._analyzed_data_file[:-3] + '_event_build_aligned_plane_%i.h5' % plane,
