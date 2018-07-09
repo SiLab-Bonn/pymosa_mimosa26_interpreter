@@ -146,7 +146,6 @@ def add_event_status(plane_id, event_status, status_code):
 @njit
 def build_hits(raw_data, frame_id, last_frame_id, frame_length, word_index, n_words, row, event_status,
                event_number, trigger_number, timestamp, last_timestamp, max_hits_per_chunk, trigger_data_format=2):
-    # TODO update description
     ''' Main interpretation function. Loops over the raw data and creates a hit array. Data errors are checked for.
     A lot of parameters are needed, since the variables have to be buffered for chunked analysis and given for
     each call of this function.
@@ -171,8 +170,12 @@ def build_hits(raw_data, frame_id, last_frame_id, frame_length, word_index, n_wo
         Actual event status for each plane
     event_number : np.array, shape 6
         The event counter set by the software counting full events for each plane
-    timestamp : np.array shape 6
-        The timestamp read from mimosa header
+    trigger_number : np.array
+        The trigger number of the actual event
+    timestamp : np.array shape 7
+        First index contains the trigger timestamp. Last six indices contains the timestamps from Mimosa26 frames
+    last_timestamp : np.array
+        Timestamp of last Mimosa26 frame
     max_hits_per_chunk : number
         Maximum expected hits per chunk. Needed to allocate hit array.
     trigger_data_format : integer
@@ -339,7 +342,7 @@ class RawDataInterpreter(object):
         self.tlu_word_index = np.zeros(6, np.uint32)  # TLU buffer index for each plane; needed to append hits
         self.event_status = np.zeros(shape=(7, ), dtype=np.uint16)  # Actual event status for each plane, TLU and 6 Mimosa planes
         self.event_number = np.ones(6, np.int64) * -1  # The event counter set by the software counting full events for each plane
-        self.trigger_number = 0  # The actual event trigger number
+        self.trigger_number = 0  # The trigger number of the actual event
 
     def interpret_raw_data(self, raw_data):
         chunk_result = build_hits(raw_data=raw_data,
