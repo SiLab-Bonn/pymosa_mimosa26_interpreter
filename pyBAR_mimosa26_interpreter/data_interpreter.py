@@ -135,9 +135,7 @@ class DataInterpreter(object):
         return self
 
     def __exit__(self, *exc_info):
-        if self.output_pdf:
-            logging.info('Closing output PDF file: %s', str(self.output_pdf._file.fh.name))
-            self.output_pdf.close()
+        return self
 
     def interpret_word_table(self):
         with tb.open_file(self._raw_data_file, 'r') as in_file_h5:
@@ -201,6 +199,10 @@ class DataInterpreter(object):
                                                        filename=self.output_pdf)
                     except:
                         logging.warning('Could not create event status plot!')
+
+                if self.output_pdf:
+                    logging.info('Closing output PDF file: %s', str(self.output_pdf._file.fh.name))
+                    self.output_pdf.close()
 
     def interpret_hit_table(self):
         if self._time_reference_file is None:
