@@ -122,7 +122,7 @@ def _correlate_to_time_ref(m26_trig_number, ref_trig_number, correlation_buffer)
 class EventBuilder(object):
     ''' Class to convert M26 hit table into events'''
 
-    def __init__(self):
+    def __init__(self, chunk_size=5000000):
         self.event_table_dtype = [('event_number', '<i8'), ('event_timestamp', '<u4'), ('trigger_number', '<u4'), ('frame', "<u4"),
                                   ('m26_timestamp', '<u4'), ("column", '<u2'), ("row", '<u4'), ("tlu_y", '<u4'), ('tlu_frame', "<u4")]
         self.trigger_data_dtype = [('frame', '<u4'), ('time_stamp', '<u4'), ('trigger_number', '<u2'), ('row', '<u2')]
@@ -130,6 +130,9 @@ class EventBuilder(object):
         self.correlation_buffer_dtype = [("m26_ts_start", "<i8"), ("m26_ts_stop", "<i8"), ("ts_trigger_data", "<i8"),
                                          ("m26_index", "<u8"), ("trigger_data_index", "<u8")]
         self.correlation_buffer_time_ref_dtype = [("trg_number_time_ref", "<u8"), ("m26_data_index", "<u8"), ("time_ref_data_index", "<u8")]
+
+        # set chunksize
+        self.chunk_size = chunk_size
 
         # reset all variables
         self.reset()
@@ -186,7 +189,7 @@ class EventBuilder(object):
         hit_data_out['column'] = hit_data[correlation_buffer["m26_index"]]["column"]
         hit_data_out['row'] = hit_data[correlation_buffer["m26_index"]]["row"]
 
-        return hit_data_out, hit_data, trigger_data, m26_index, trigger_data_index, event_number, correlation_buffer
+        return hit_data_out, hit_data, trigger_data, m26_index, trigger_data_index, event_number
 
     def align_with_time_ref_loop(self, m26_data, reference_data, correlation_buffer):
         '''
@@ -203,7 +206,7 @@ class EventBuilder(object):
         # Take event number of time reference data
         hit_buffer['event_number'] = reference_data[correlation_buffer["time_ref_data_index"]]['event_number']
 
-        return hit_buffer, correlation_buffer
+        return hit_buffer
 
     def build_events(self, hits, plane, last_chunk):
         '''
@@ -211,16 +214,17 @@ class EventBuilder(object):
         to one M26 data frame (115.2 us). If the trigger timestamp of the TLU data word is within the range defined by
         the start and stop frame timestamp for the M26 data, it is assigned to the M26 data.
         '''
-
+        # init correlation buffer
+        correlation_buffer = np.zeros(self.chunk_size, dtype=self.correlation_buffer_dtype)
         chunk_result = self.build_events_loop(hits=hits,
                                               hit_data=self.hit_data,
                                               trigger_data=self.trigger_data,
                                               plane=plane,
-                                              correlation_buffer=self.correlation_buffer,
+                                              correlation_buffer=correlation_buffer,
                                               event_number=self.event_number,
                                               last_chunk=last_chunk)
 
-        (hit_data_out, self.hit_data, self.trigger_data, m26_index, trigger_data_index, self.event_number, self.correlation_buffer) = chunk_result
+        (hit_data_out, self.hit_data, self.trigger_data, m26_index, trigger_data_index, self.event_number) = chunk_result
 
         self.event_number = self.event_number + trigger_data_index
         self.trigger_data = self.trigger_data[trigger_data_index:]
@@ -234,11 +238,10 @@ class EventBuilder(object):
         the event number of the time reference data based on the same trigger number. Further, only M26 data is stored
         for which an event in the time reference data exists.
         '''
-
-        chunk_result = self.align_with_time_ref_loop(m26_data=m26_data,
+        # init correlation buffer
+        correlation_buffer = np.empty(self.chunk_size, dtype=self.correlation_buffer_time_ref_dtype)
+        hit_data_out = self.align_with_time_ref_loop(m26_data=m26_data,
                                                      reference_data=reference_data,
-                                                     correlation_buffer=self.correlation_buffer_time_ref)
-
-        (hit_data_out, self.correlation_buffer_time_ref) = chunk_result
+                                                     correlation_buffer=correlation_buffer)
 
         return hit_data_out

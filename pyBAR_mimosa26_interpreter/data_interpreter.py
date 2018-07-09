@@ -2,6 +2,8 @@
     Additional, events can be build from the hit table using the TLU data words and time reference data.
 '''
 
+from __future__ import division
+
 import os
 import numpy as np
 import tables as tb
@@ -44,7 +46,7 @@ def fill_event_status_hist(hist, hits):
 class DataInterpreter(object):
     ''' Class to provide an easy to use interface to encapsulate the interpretation process.'''
 
-    def __init__(self, raw_data_file, time_reference_file=None, analyzed_data_file=None, create_pdf=True, trigger_data_format=2, chunk_size=100000000):
+    def __init__(self, raw_data_file, time_reference_file=None, analyzed_data_file=None, create_pdf=True, trigger_data_format=2, chunk_size=5000000):
         '''
         Parameters
         ----------
@@ -89,7 +91,7 @@ class DataInterpreter(object):
             self.output_pdf = None
 
         self._raw_data_interpreter = raw_data_interpreter.RawDataInterpreter(trigger_data_format=trigger_data_format)
-        self._event_builder = event_builder.EventBuilder()
+        self._event_builder = event_builder.EventBuilder(chunk_size)
 
         # Std. settings
         self.chunk_size = chunk_size
@@ -215,7 +217,7 @@ class DataInterpreter(object):
             self.build_events_from_hit_table(input_file=self._analyzed_data_file,
                                              output_file=self._analyzed_data_file[:-3] + '_event_build_plane_%i.h5' % plane,
                                              plane=plane,
-                                             chunk_size=2000000)
+                                             chunk_size=self.chunk_size)
 
         # second step: align events with time reference plane
         logging.info("Aligning data with time reference...")
@@ -223,9 +225,9 @@ class DataInterpreter(object):
             self.align_with_time_reference(input_file=self._analyzed_data_file[:-3] + '_event_build_plane_%i.h5' % plane,
                                            input_file_time_reference=self._time_reference_file,
                                            output_file=self._analyzed_data_file[:-3] + '_event_build_aligned_plane_%i.h5' % plane,
-                                           chunk_size=1000000)
+                                           chunk_size=int(self.chunk_size / 10))  # use smaller chunksize, otherwise correlation buffer needs to be too large
 
-    def build_events_from_hit_table(self, input_file, output_file, plane, chunk_size=10000000):
+    def build_events_from_hit_table(self, input_file, output_file, plane, chunk_size=5000000):
         '''
         Build events from M26 hit table using TLU data words. One TLU data word is assigned to one M26 data frame.
         '''
@@ -257,14 +259,13 @@ class DataInterpreter(object):
                     hit_table_out.append(hit_data_out)
                     hit_table_out.flush()
 
-    def align_with_time_reference(self, input_file, input_file_time_reference, output_file, chunk_size=1000000):
+    def align_with_time_reference(self, input_file, input_file_time_reference, output_file, chunk_size=500000):
         '''
         Align M26 data with time reference data.
         '''
 
         with tb.open_file(input_file_time_reference, 'r') as in_file_ref_h5:
             hit_table_time_reference = in_file_ref_h5.root.Hits[:]
-            reference_data = hit_table_time_reference[["event_number", "trigger_number"]]
 
         with tb.open_file(output_file, 'w') as out_file_h5:
             description = np.zeros((1, ), dtype=self._event_builder.event_table_dtype).dtype
@@ -275,10 +276,15 @@ class DataInterpreter(object):
             with tb.open_file(input_file, 'r') as in_file_h5:
                 m26_hit_table = in_file_h5.root.Hits[:]
                 n_m26 = m26_hit_table.shape[0]
+                n_time_reference = hit_table_time_reference.shape[0]
                 for i in tqdm(range(0, n_m26, chunk_size)):
                     m26_data = m26_hit_table[i:i + chunk_size]
-                    hit_buffer = self._event_builder.align_with_time_ref(m26_data,
-                                                                         reference_data)
+                    ratio = n_time_reference / n_m26  # needed for properly chunking of time reference data with respect to chunked m26 data
+                    reference_data = hit_table_time_reference[int(i * ratio):int((i + chunk_size) * ratio)][["event_number", "trigger_number"]]
 
+                    # align data with time reference
+                    hit_buffer = self._event_builder.align_with_time_ref(m26_data, reference_data)
+
+                    # append to table
                     hit_table_out.append(hit_buffer)
                     hit_table_out.flush()

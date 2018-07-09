@@ -71,14 +71,15 @@ def format_hit_table(input_file, output_file, transpose=False, frame=False, chun
         m26_hit_table = in_file_h5.root.Hits[:]
         n_m26 = m26_hit_table.shape[0]
         with tb.open_file(output_file, 'w') as out_file_h5:
-            hits_formatted = np.zeros((n_m26, ), dtype=[('event_number', np.int64), ('frame', np.uint8),
-                                                        ('column', np.uint16), ('row', np.uint16), ('charge', np.uint16)])
+            description = np.dtype([('event_number', np.int64), ('frame', np.uint8),
+                                    ('column', np.uint16), ('row', np.uint16), ('charge', np.uint16)])
             hit_table_out = out_file_h5.create_table(out_file_h5.root, name='Hits',
-                                                     description=hits_formatted.dtype, title='Selected hits for test beam analysis',
+                                                     description=description, title='Selected hits for test beam analysis',
                                                      filters=tb.Filters(complib='blosc', complevel=5, fletcher32=False))
 
             for i in tqdm(range(0, n_m26, chunk_size)):
                 m26_data = m26_hit_table[i:i + chunk_size]
+                hits_formatted = np.zeros(shape=m26_data.shape[0], dtype=description)
 
                 hits_formatted['event_number'] = m26_data['event_number']
 
