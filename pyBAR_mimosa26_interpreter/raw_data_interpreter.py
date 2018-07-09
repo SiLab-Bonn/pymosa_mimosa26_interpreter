@@ -322,7 +322,7 @@ def build_hits(raw_data, frame_id, last_frame_id, frame_length, word_index, n_wo
 class RawDataInterpreter(object):
     ''' Class to convert the raw data chunks to hits'''
 
-    def __init__(self, max_hits_per_chunk=5000000, trigger_data_format=0):
+    def __init__(self, max_hits_per_chunk=5000000, trigger_data_format=2):
         self.max_hits_per_chunk = max_hits_per_chunk
         self.trigger_data_format = trigger_data_format
         self.reset()
