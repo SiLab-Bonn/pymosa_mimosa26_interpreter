@@ -1,19 +1,19 @@
-''' Class to convert Mimosa 26 raw data recorded with pyBAR to hit maps.
+''' Class to convert Mimosa26 raw data.
 
 General structure of Mimosa26 raw data:
  - raw data is 32 bit: first 8 bits are always 20 (hex) for M26
- - next for bits are plane number
+ - next four bits are plane number
  - last 4 bits of 16 high bits are not used
  - rest of 16 bit is data word
 
 General chain of Mimosa26 raw data words
- - timestamp (2x?), word index 1
- - frame number (2x, HIGH + LOW), word index 2, 3
- - length of data (2x, HIGH + LOW), word index 4, 5
- - data (2x)
+ - timestamp [word index 1]
+ - frame number (2x, HIGH + LOW) [word index 2 + 3]
+ - length of data (2x, HIGH + LOW) [word index 4 + 5]
+ - hit data (2x)
  - ...
  - ...
- - tailer (2x, HIGH + LOW), word index 6, 7
+ - tailer (2x, HIGH + LOW) [word index 6 + 7]
 
 '''
 from numba import njit
