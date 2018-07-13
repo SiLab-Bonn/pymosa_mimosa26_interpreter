@@ -19,10 +19,11 @@ General chain of Mimosa26 raw data words
 from numba import njit
 import numpy as np
 
+
 FRAME_UNIT_CYCLE = 4608  # time for one frame in units of 40 MHz clock cylces
 
 hit_dtype = np.dtype([('plane', '<u1'), ('frame', '<u4'), ('time_stamp', '<u4'), ('trigger_number', '<u2'),
-                      ('column', '<u2'), ('row', '<u2'), ('event_status', '<u2')])
+                      ('column', '<u2'), ('row', '<u2'), ('event_status', '<u4')])
 tlu_dtype = np.dtype([('event_number', '<i8'), ('trigger_number', '<i4'), ('frame', '<u4')])
 
 # Event error codes
@@ -203,20 +204,9 @@ def build_hits(raw_data, frame_id, last_frame_id, frame_length, word_index, n_wo
             plane_id = get_plane_number(word) - 1  # The actual_plane if the actual word belongs to (0 .. 5)
             # Interpret the word of the actual plane
             if is_data_loss(word):
-                # Reset word index and event status for all planes
-                # Note: event_status[0] is TLU event status
-                word_index[0] = -1
-                event_status[1] = 0
-                word_index[1] = -1
-                event_status[2] = 0
-                word_index[2] = -1
-                event_status[3] = 0
-                word_index[3] = -1
-                event_status[4] = 0
-                word_index[4] = -1
-                event_status[5] = 0
-                word_index[5] = -1
-                event_status[6] = 0
+                # Reset word index for all planes
+                for i in range(6):
+                    word_index[i] = -1
             elif is_frame_header_high(word):  # New event for actual plane; events are aligned at this header
                 if plane_id == 0:
                     last_timestamp = timestamp[1]  # timestamp of last M26 frame
@@ -291,6 +281,10 @@ def build_hits(raw_data, frame_id, last_frame_id, frame_length, word_index, n_wo
                             else:
                                 # truncated data
                                 add_event_status(plane_id + 1, event_status, TRUNC_EVENT)
+
+                        # reset event status
+                        for i in range(1, 7):
+                            event_status[i] = 0
         elif is_trigger_word(word):  # raw data word is TLU word
             trigger_number = get_trigger_number(word, trigger_data_format)
             # TODO: what is this? make this nicer
@@ -311,7 +305,6 @@ def build_hits(raw_data, frame_id, last_frame_id, frame_length, word_index, n_wo
             hits[hit_index]['row'] = np.uint16(((timestamp[0] - last_timestamp) & 0x7FFF) % FRAME_UNIT_CYCLE)  # number of clock cycles between TLU word timestamp and timestamp of last M26 frame in units of full FRAME_UNIT_CYCLE
             hits[hit_index]['event_status'] = event_status[0]
             hit_index = hit_index + 1
-            # TODO: fix event status, something is wrong with overall event status
             add_event_status(0, event_status, TRG_WORD)
         else:
             add_event_status(0, event_status, UNKNOWN_WORD)
@@ -340,7 +333,7 @@ class RawDataInterpreter(object):
 
         # Per event variables
         self.tlu_word_index = np.zeros(6, np.uint32)  # TLU buffer index for each plane; needed to append hits
-        self.event_status = np.zeros(shape=(7, ), dtype=np.uint16)  # Actual event status for each plane, TLU and 6 Mimosa planes
+        self.event_status = np.zeros(shape=(7, ), dtype=np.uint32)  # Actual event status for each plane, TLU and 6 Mimosa planes
         self.event_number = np.ones(6, np.int64) * -1  # The event counter set by the software counting full events for each plane
         self.trigger_number = 0  # The trigger number of the actual event
 

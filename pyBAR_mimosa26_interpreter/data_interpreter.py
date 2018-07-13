@@ -35,15 +35,16 @@ def fill_occupancy_hist(hits):
 @njit
 def fill_event_status_hist(hist, hits):
     for hit_index in range(hits.shape[0]):
-        if hits[hit_index]['plane'] == 255:  # TLU data
+        event_status = hits[hit_index]['event_status']
+        plane = hits[hit_index]['plane']
+        if plane == 255:  # TLU data
             for i in range(32):
-                if hits[hit_index]['event_status'] & (0b1 << i):
+                if event_status & (0b1 << i):
                     hist[0][i] += 1
         else:  # M26 data
             for i in range(32):
-                plane_id = hits[hit_index]['plane']
-                if hits[hit_index]['event_status'] & (0b1 << i):
-                    hist[plane_id][i] += 1
+                if event_status & (0b1 << i):
+                    hist[plane][i] += 1
 
 
 class DataInterpreter(object):
