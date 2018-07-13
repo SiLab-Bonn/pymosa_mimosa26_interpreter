@@ -21,12 +21,15 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - [%(leve
 
 
 @njit
-def fill_occupanc_hist(hist, hits):
+def fill_occupancy_hist(hits):
+    hist = np.zeros(shape=(6, 1152, 576), dtype=np.int32)  # for each plane
     for hit_index in range(hits.shape[0]):
-        if hits[hit_index]['plane'] == 255:
-            pass  # TLU data
-        else:
-            hist[hits[hit_index]['plane'] - 1][hits[hit_index]['column'], hits[hit_index]['row']] += 1
+        col = hits[hit_index]['column']
+        row = hits[hit_index]['row']
+        plane_id = hits[hit_index]['plane'] - 1
+        hist[plane_id][col, row] += 1
+
+    return hist
 
 
 @njit
@@ -155,7 +158,7 @@ class DataInterpreter(object):
                                                          chunkshape=(self.chunk_size / 100,))
 
                 if self.create_occupancy_hist:
-                    self.occupancy_arrays = np.zeros(shape=(6, 1152, 576), dtype=np.int32)  # for each plane
+                    occupancy_hist = np.zeros(shape=(6, 1152, 576), dtype=np.int32)  # for each plane
 
                 if self.create_error_hist:
                     self.event_status_hist = np.zeros(shape=(7, 32), dtype=np.int32)  # for TLU and each plane
@@ -169,38 +172,54 @@ class DataInterpreter(object):
                         hit_table.append(hits)
 
                     if self.create_occupancy_hist:
-                        fill_occupanc_hist(self.occupancy_arrays, hits)
+                        occupancy_hist += fill_occupancy_hist(hits[hits['plane'] != 255])
 
                     if self.create_error_hist:
                         fill_event_status_hist(self.event_status_hist, hits)
+                        print self.event_status_hist
 
                 # Add histograms to data file and create plots
                 for plane in range(7):
-                    hits = hit_table[:]
-                    if plane == 0:  # do not create occupancy map for TLU
+                    if plane == 0:  # TLU, only store event status histogram
                         logging.info('Store histograms and create plots for TLU')
-                        n_words = hits[hits['plane'] == 255].shape[0]
-                    else:
-                        # create occupancy map for all Mimosa26 planes
-                        logging.info('Store histograms and create plots for plane %d', plane)
-                        occupancy_array = out_file_h5.create_carray(out_file_h5.root, name='HistOcc_plane%d' % plane,
-                                                                    title='Occupancy Histogram of Mimosa plane %d' % plane,
-                                                                    atom=tb.Atom.from_dtype(self.occupancy_arrays[plane - 1].dtype),
-                                                                    shape=self.occupancy_arrays[plane - 1].shape, filters=self._filter_table)
-                        occupancy_array[:] = self.occupancy_arrays[plane - 1]
-                        if self.output_pdf:
-                            plotting.plot_fancy_occupancy(self.occupancy_arrays[plane - 1].T, z_max='median',
-                                                          title='Occupancy for plane %d' % plane, filename=self.output_pdf)
-                        n_words = hits[hits['plane'] == plane].shape[0]
 
-                    # plot event status histograms
-                    try:
-                        if self.output_pdf:
-                            plotting.plot_event_status(hist=self.event_status_hist[plane].T,
-                                                       title='Event status for plane %d ($\Sigma = % i$)' % (plane, n_words),
-                                                       filename=self.output_pdf)
-                    except:
-                        logging.warning('Could not create event status plot!')
+                        if self.create_error_hist:
+                            # plot event status histograms
+                            try:
+                                if self.output_pdf:
+                                    n_words = np.sum(self.event_status_hist[plane].T)
+                                    plotting.plot_event_status(hist=self.event_status_hist[plane].T,
+                                                               title='Event status for plane %d ($\Sigma = % i$)' % (plane, n_words),
+                                                               filename=self.output_pdf)
+                            except:
+                                logging.warning('Could not create event status plot!')
+                    else:
+                        # store occupancy map for all Mimosa26 planes
+                        logging.info('Store histograms and create plots for plane %d', plane)
+
+                        if self.create_occupancy_hist:
+                            occupancy_array = out_file_h5.create_carray(out_file_h5.root, name='HistOcc_plane%d' % plane,
+                                                                        title='Occupancy Histogram of Mimosa plane %d' % plane,
+                                                                        atom=tb.Atom.from_dtype(occupancy_hist[plane - 1].dtype),
+                                                                        shape=occupancy_hist[plane - 1].shape, filters=self._filter_table)
+                            occupancy_array[:] = occupancy_hist[plane - 1]
+                            try:
+                                if self.output_pdf:
+                                    plotting.plot_fancy_occupancy(occupancy_hist[plane - 1].T, z_max='median',
+                                                                  title='Occupancy for plane %d' % plane, filename=self.output_pdf)
+                            except:
+                                logging.warning('Could not create occupancy map plot!')
+
+                        if self.create_error_hist:
+                            # plot event status histograms
+                            try:
+                                if self.output_pdf:
+                                    n_words = np.sum(self.event_status_hist[plane].T)
+                                    plotting.plot_event_status(hist=self.event_status_hist[plane].T,
+                                                               title='Event status for plane %d ($\Sigma = % i$)' % (plane, n_words),
+                                                               filename=self.output_pdf)
+                            except:
+                                logging.warning('Could not create event status plot!')
 
                 if self.output_pdf:
                     logging.info('Closing output PDF file: %s', str(self.output_pdf._file.fh.name))
@@ -238,7 +257,6 @@ class DataInterpreter(object):
         description = np.zeros((1, ), dtype=self._event_builder.event_table_dtype).dtype
 
         with tb.open_file(output_file, 'w') as out_file_h5:
-            # TODO: add excpected row, chunk size?
             hit_table_out = out_file_h5.create_table(out_file_h5.root, name='Hits', description=description,
                                                      title='Hit Table for Testbeam Analysis',
                                                      filters=tb.Filters(complib='blosc', complevel=5, fletcher32=False))

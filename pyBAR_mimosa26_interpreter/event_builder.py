@@ -14,7 +14,8 @@ LOWER_LIMIT = 48  # correct for offset between M26 40 MHz clock and 40 MHz from 
 @njit
 def _correlate_ts_to_range(m26_ts_start, m26_ts_stop, ts_trigger_data, correlation_buffer, last_chunk):
     '''
-    Correlate trigger timestamp to all data for which the trigger timestamp is within timestamp start and stop of frame data.
+    Correlate trigger timestamp to all data for which the trigger timestamp is within readout frame (integration time) of the actual
+    frame data (defined by timestamp start and stop of frame data).
     '''
 
     m26_ts_index = 0
@@ -141,9 +142,6 @@ class EventBuilder(object):
         self.event_number = 0
         self.trigger_data = np.empty(0, dtype=self.trigger_data_dtype)
         self.hit_data = np.empty(0, dtype=self.hit_data_dtype)
-        # TODO: do not hardcode chunksize
-        self.correlation_buffer = np.empty(10000000, dtype=self.correlation_buffer_dtype)
-        self.correlation_buffer_time_ref = np.empty(5000000, dtype=self.correlation_buffer_time_ref_dtype)
 
     def build_events_loop(self, hits, hit_data, trigger_data, plane, correlation_buffer, event_number, last_chunk):
         '''
@@ -156,9 +154,9 @@ class EventBuilder(object):
         m26_data_selection = np.logical_and(hits["plane"] == plane, hits["column"] < 1152)
         hit_data = np.append(hit_data, hits[m26_data_selection][["frame", "time_stamp", "column", "row"]])
 
-        # calculate for each row the actual start timestamp of this specific row readout using the frame of the readout and the row number
+        # calculate for each frame data the actual start timestamp of this specific row readout using the frame of the readout and the row number
         m26_timestamp_start = np.int64(hit_data["frame"]) * FRAME_UNIT_CYCLE + np.int64(hit_data["row"]) * ROW_UNIT_CYCLE - 2 * FRAME_UNIT_CYCLE - LOWER_LIMIT
-        # stop timestamp
+        # stop timestamp of actual frame data
         m26_timestamp_stop = m26_timestamp_start + LOWER_LIMIT + FRAME_UNIT_CYCLE
         # something like timestamp of TLU word, aligned to M26 frame
         trigger_data_timestamp = np.int64(trigger_data['frame']) * FRAME_UNIT_CYCLE + np.int64(trigger_data["row"])
