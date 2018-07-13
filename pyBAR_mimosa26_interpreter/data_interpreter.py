@@ -176,7 +176,6 @@ class DataInterpreter(object):
 
                     if self.create_error_hist:
                         fill_event_status_hist(self.event_status_hist, hits)
-                        print self.event_status_hist
 
                 # Add histograms to data file and create plots
                 for plane in range(7):
