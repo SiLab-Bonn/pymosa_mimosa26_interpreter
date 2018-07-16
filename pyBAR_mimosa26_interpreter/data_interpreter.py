@@ -100,8 +100,7 @@ class DataInterpreter(object):
         # Std. settings
         self.chunk_size = chunk_size
         if trigger_data_format != 2:
-            logging.warning('Trigger data format different than 2 is not supported. For event building a trigger timestamp is required!')
-            raise
+            raise ValueError('Trigger data format different than 2 is not yet supported. For event building a trigger timestamp is required!')
 
         self.trigger_data_format = trigger_data_format
 
