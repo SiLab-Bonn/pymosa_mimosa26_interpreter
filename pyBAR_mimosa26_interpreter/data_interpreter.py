@@ -71,10 +71,6 @@ class DataInterpreter(object):
             How many raw data words are analyzed at once in RAM. Limited by available RAM. Faster
             interpretation for larger numbers. RAM needed is approximately 10 * chunk_size in bytes.
         '''
-
-        if chunk_size < 100:
-            raise RuntimeError('Please chose reasonable large chunk size')
-
         self._raw_data_file = raw_data_file
 
         self._time_reference_file = time_reference_file
@@ -98,6 +94,8 @@ class DataInterpreter(object):
         self._event_builder = event_builder.EventBuilder(chunk_size)
 
         # Std. settings
+        if chunk_size < 100:
+            raise ValueError('Please chose reasonable large chunk size')
         self.chunk_size = chunk_size
         if trigger_data_format != 2:
             raise ValueError('Trigger data format different than 2 is not yet supported. For event building a trigger timestamp is required!')
