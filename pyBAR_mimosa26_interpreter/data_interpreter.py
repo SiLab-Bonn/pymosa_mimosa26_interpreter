@@ -94,7 +94,7 @@ class DataInterpreter(object):
         self._event_builder = event_builder.EventBuilder(chunk_size)
 
         # Std. settings
-        if chunk_size < 100:
+        if chunk_size < 10000:
             raise ValueError('Please chose reasonable large chunk size')
         self.chunk_size = chunk_size
         if trigger_data_format != 2:
