@@ -191,7 +191,7 @@ class DataInterpreter(object):
                                     plotting.plot_event_status(hist=self.event_status_hist[plane].T,
                                                                title='Event status for plane %d ($\Sigma = % i$)' % (plane, n_words),
                                                                filename=self.output_pdf)
-                            except:
+                            except Exception:
                                 logging.warning('Could not create event status plot!')
                     else:
                         # store occupancy map for all Mimosa26 planes
@@ -207,7 +207,7 @@ class DataInterpreter(object):
                                 if self.output_pdf:
                                     plotting.plot_fancy_occupancy(occupancy_hist[plane - 1].T, z_max='median',
                                                                   title='Occupancy for plane %d' % plane, filename=self.output_pdf)
-                            except:
+                            except Exception:
                                 logging.warning('Could not create occupancy map plot!')
 
                         if self.create_error_hist:
@@ -218,7 +218,7 @@ class DataInterpreter(object):
                                     plotting.plot_event_status(hist=self.event_status_hist[plane].T,
                                                                title='Event status for plane %d ($\Sigma = % i$)' % (plane, n_words),
                                                                filename=self.output_pdf)
-                            except:
+                            except Exception:
                                 logging.warning('Could not create event status plot!')
 
                 if self.output_pdf:
