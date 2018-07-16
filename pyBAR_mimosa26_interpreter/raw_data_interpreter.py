@@ -6,21 +6,21 @@ General structure of Mimosa26 raw data:
  - last 4 bits of 16 high bits are not used
  - rest of 16 bit is data word
 
-General chain of Mimosa26 raw data words
- - timestamp [word index 1]
- - frame number (2x, HIGH + LOW) [word index 2 + 3]
- - length of data (2x, HIGH + LOW) [word index 4 + 5]
- - hit data (2x)
+General chain of Mimosa26 raw data words:
+ - Frame header containing timestamp (2x, HIGH + LOW) [word index 0 + 1]
+ - Frame number (2x, HIGH + LOW) [word index 2 + 3]
+ - Length of data (2x, HIGH + LOW) [word index 4 + 5]
+ - Hit data (2x)
  - ...
  - ...
- - tailer (2x, HIGH + LOW) [word index 6 + 7]
+ - Tailer (2x, HIGH + LOW) [word index 6 + 7]
 
 '''
 from numba import njit
 import numpy as np
 
 
-FRAME_UNIT_CYCLE = 4608  # time for one frame in units of 40 MHz clock cylces
+FRAME_UNIT_CYCLE = 4608  # time for one frame in units of 40 MHz clock cylces (115.2 * 40)
 
 hit_dtype = np.dtype([('plane', '<u1'), ('frame', '<u4'), ('time_stamp', '<u4'), ('trigger_number', '<u2'),
                       ('column', '<u2'), ('row', '<u2'), ('event_status', '<u4')])
@@ -52,13 +52,13 @@ def is_mimosa_data(word):  # Check for Mimosa data word
 
 
 @njit
-def get_plane_number(word):  # There are 6 planes in the stream, starting from 1; return plane number
-    return (word >> 20) & 0xF
+def is_data_loss(word):
+    return 0x00020000 & word == 0x20000
 
 
 @njit
-def is_data_loss(word):
-    return 0x00020000 & word == 0x20000
+def get_plane_number(word):  # There are 6 planes in the stream, starting from 1; return plane number
+    return (word >> 20) & 0xF
 
 
 @njit
@@ -72,18 +72,23 @@ def get_frame_id_low(word):  # Get the frame id from the frame id low word
 
 
 @njit
-def is_frame_header_high(word):  # Check if frame header high word
+def is_frame_header(word):  # Check if frame header high word
     return 0x000F0000 & word == 0x10000
 
 
 @njit
-def is_frame_tailer_high(word):  # Check if frame header high word
+def is_frame_tailer_high(word):  # Check if frame tailer high word
     return word & 0xFFFF == 0xaa50
 
 
 @njit
 def is_frame_tailer_low(word, plane):  # Check if frame header low word for the actual plane
     return (word & 0xFFFF) == (0xaa50 | plane)
+
+
+@njit
+def get_frame_length(word):
+    return (word & 0xFFFF) * 2
 
 
 @njit
@@ -102,30 +107,12 @@ def get_row(word):
 
 
 @njit
-def is_trigger_word(word):
-    return 0x80000000 & word == 0x80000000
+def get_m26_timestamp_high(word):  # time stamp of Mimosa26 data from frame header high
+    return word & 0x0000FFFF
 
 
 @njit
-def get_frame_length(word):
-    return (word & 0xFFFF) * 2
-
-
-@njit
-def get_trigger_timestamp(word):  # time stamp of TLU word
-    return (word & 0x7FFF0000) >> 16
-
-
-@njit
-def get_trigger_number(word, trigger_data_format):  # trigger number of TLU word
-    if trigger_data_format == 2:
-        return word & np.uint16(0xFFFF)
-    else:
-        return word & 0x7FFFFFFF
-
-
-@njit
-def get_timestamp_high(word):  # time stamp high of Mimosa26 data
+def get_m26_timestamp_low(word):  # time stamp of Mimosa26 data from frame header low
     return (0x0000FFFF & word) << 16
 
 
@@ -137,6 +124,24 @@ def get_n_words(word):  # Return the number of data words for the actual row
 @njit
 def has_overflow(word):
     return word & 0x00008000 != 0
+
+
+@njit
+def is_trigger_word(word):
+    return 0x80000000 & word == 0x80000000
+
+
+@njit
+def get_trigger_timestamp(word):  # time stamp of TLU word
+    return (word & 0x7FFF0000) >> 16
+
+
+@njit
+def get_trigger_number(word, trigger_data_format):  # trigger number of TLU word
+    if trigger_data_format == 2:
+        return word & 0xFFFF
+    else:
+        return word & 0x7FFFFFFF
 
 
 @njit
@@ -152,7 +157,7 @@ def build_hits(raw_data, frame_id, last_frame_id, frame_length, word_index, n_wo
     each call of this function.
 
     Parameters:
-    ----------
+    -----------
     raw_data : np.array
         The array with the raw data words
     frame_id : np.array, shape 6
@@ -199,77 +204,78 @@ def build_hits(raw_data, frame_id, last_frame_id, frame_length, word_index, n_wo
     # Loop over raw data words
     for raw_i in range(raw_data.shape[0]):
         word = raw_data[raw_i]  # Actual raw data word
-        if is_mimosa_data(word):  # Check if word is from M26. Other words can come from TLU.
+        if is_mimosa_data(word):  # Check if word is from Mimosa26. Other words can come from TLU.
             # Check to which plane the data belongs
-            plane_id = get_plane_number(word) - 1  # The actual_plane if the actual word belongs to (0 .. 5)
+            plane_id = get_plane_number(word) - 1  # The actual_plane if the actual word belongs to (0 to 5)
             # Interpret the word of the actual plane
             if is_data_loss(word):
                 # Reset word index for all planes
                 for i in range(6):
                     word_index[i] = -1
-            elif is_frame_header_high(word):  # New event for actual plane; events are aligned at this header
+            elif is_frame_header(word):  # New event for actual plane; events are aligned at this header
                 if plane_id == 0:
-                    last_timestamp = timestamp[1]  # timestamp of last M26 frame
-                    last_frame_id = frame_id[1]  # last M26 frame number
-                # TODO: what is this
-                timestamp[plane_id + 1] = (timestamp[plane_id + 1] & 0xFFFF0000) | word & 0xFFFF
+                    last_timestamp = timestamp[1]  # Timestamp of last Mimosa26 frame
+                    last_frame_id = frame_id[1]  # Last Mimosa26 frame number
+                # Get Mimosa26 timestamp from header high word
+                timestamp[plane_id + 1] = get_m26_timestamp_high(word) | (timestamp[plane_id + 1] & 0xFFFF0000)
                 word_index[plane_id] = 0
-            elif word_index[plane_id] == -1:  # trash data
+            elif word_index[plane_id] == -1:  # Trash data
                 # TODO: add event status trash data
                 pass
-            else:  # correct M26 data
+            else:  # Correct M26 data
                 word_index[plane_id] += 1
-                if word_index[plane_id] == 1:  # 1. timestamp high
+                if word_index[plane_id] == 1:  # After header high word header low word comes
                     # TODO: make this nicer
-                    if (timestamp[plane_id + 1] >> 16) != (0x0000FFFF & word) and (((timestamp[plane_id + 1] >> 16) + 1) & 0xFFFF) != (0x0000FFFF & word):
+                    if (timestamp[plane_id + 1] >> 16) != (0x0000FFFF & word) and (((timestamp[plane_id + 1] >> 16) + 1) & 0xFFFF) != (0x0000FFFF & word):  # Timestamp has overflow
                         add_event_status(plane_id + 1, event_status, TS_OVERFLOW)
 
-                    timestamp[plane_id + 1] = get_timestamp_high(word) | timestamp[plane_id + 1] & 0x0000FFFF  # TODO: this is Mimosa26 timestamp?
+                    # Get Mimosa26 timestamp from header low word
+                    timestamp[plane_id + 1] = get_m26_timestamp_low(word) | timestamp[plane_id + 1] & 0x0000FFFF
 
-                elif word_index[plane_id] == 2:  # 2. word should have the frame ID high word
-                    frame_id[plane_id + 1] = get_frame_id_high(word) | (frame_id[plane_id + 1] & 0xFFFF0000)  # TODO: make this nicer
+                elif word_index[plane_id] == 2:  # Next word should be the frame ID high word
+                    frame_id[plane_id + 1] = get_frame_id_high(word) | (frame_id[plane_id + 1] & 0xFFFF0000)
 
-                elif word_index[plane_id] == 3:  # 3. word should have the frame ID low word
+                elif word_index[plane_id] == 3:  # Next word should be the frame ID low word
                     frame_id[plane_id + 1] = get_frame_id_low(word) | (frame_id[plane_id + 1] & 0x0000FFFF)
 
-                elif word_index[plane_id] == 4:  # 4. word should have the frame length high word
+                elif word_index[plane_id] == 4:  # Next word should be the frame length high word
                     frame_length[plane_id] = get_frame_length(word)
 
-                elif word_index[plane_id] == 5:  # 5. word should have the frame length low word (=high word, one data line, the number of words is repeated 2 times)
+                elif word_index[plane_id] == 5:  # Next word should be the frame length low word (=high word, one data line, the number of words is repeated 2 times)
                     if frame_length[plane_id] != get_frame_length(word):
                         add_event_status(plane_id + 1, event_status, EVENT_INCOMPLETE)
 
-                elif word_index[plane_id] == 6 + frame_length[plane_id]:  # Second last word is frame tailer high word
+                elif word_index[plane_id] == 6 + frame_length[plane_id]:  # Next word should be the frame tailer high word
                     if not is_frame_tailer_high(word):
                         add_event_status(plane_id + 1, event_status, TAILER_H_ERROR)
 
-                elif word_index[plane_id] == 7 + frame_length[plane_id]:  # First last word is frame tailer low word
+                elif word_index[plane_id] == 7 + frame_length[plane_id]:  # Last word should be the frame tailer low word
                     frame_length[plane_id] = -1
                     n_words[plane_id] = 0
                     if not is_frame_tailer_low(word, plane=plane_id + 1):
                         add_event_status(plane_id + 1, event_status, TAILER_L_ERROR)
 
-                else:  # Column / Row words (actual data word)
+                else:  # Column / Row words (actual data word with hits)
                     if n_words[plane_id] == 0:  # First word contains the row info and the number of data words for this row
                         if word_index[plane_id] == 6 + frame_length[plane_id] - 1:  # Always even amount of words or this fill word is used
                             add_event_status(plane_id + 1, event_status, UNEVEN_EVENT)
                         else:
                             n_words[plane_id] = get_n_words(word)
-                            row[plane_id] = get_row(word)  # get row from data word
+                            row[plane_id] = get_row(word)  # Get row from data word
                         if has_overflow(word):
                             add_event_status(plane_id + 1, event_status, MIMOSA_OVERFLOW)
                             n_words[plane_id] = 0
-                        if row[plane_id] > 576:  # row overflow
+                        if row[plane_id] > 576:  # Row overflow
                             add_event_status(plane_id + 1, event_status, ROW_ERROR)
                     else:
                         n_words[plane_id] = n_words[plane_id] - 1  # Count down the words
                         n_hits = get_n_hits(word)
-                        column = get_column(word)  # get column from data word
-                        if column >= 1152:  # column overflow
+                        column = get_column(word)  # Get column from data word
+                        if column >= 1152:  # Column overflow
                             add_event_status(plane_id + 1, event_status, COL_ERROR)
                         for k in range(n_hits + 1):
                             if hit_index < max_hits_per_chunk:
-                                # store hits
+                                # Store hits
                                 hits[hit_index]['frame'] = frame_id[plane_id + 1]
                                 hits[hit_index]['plane'] = plane_id + 1
                                 hits[hit_index]['time_stamp'] = timestamp[plane_id + 1]
@@ -279,34 +285,34 @@ def build_hits(raw_data, frame_id, last_frame_id, frame_length, word_index, n_wo
                                 hits[hit_index]['event_status'] = event_status[plane_id + 1]
                                 hit_index = hit_index + 1
                             else:
-                                # truncated data
+                                # Truncated data
                                 add_event_status(plane_id + 1, event_status, TRUNC_EVENT)
 
-                        # reset event status
+                        # Reset event status
                         for i in range(1, 7):
                             event_status[i] = 0
-        elif is_trigger_word(word):  # raw data word is TLU word
+        elif is_trigger_word(word):  # Raw data word is TLU word
             trigger_number = get_trigger_number(word, trigger_data_format)
             # TODO: what is this? make this nicer
-            timestamp[0] = get_trigger_timestamp(word) | np.uint32(last_timestamp & 0xFFFF8000)
+            timestamp[0] = get_trigger_timestamp(word) | (last_timestamp & 0xFFFF8000)
             tlu_flag = 0
             # TODO: what is this?
             if (timestamp[0] - last_timestamp) & 0x8000 == 0x8000:  # if timestamp < ts_pre
-                timestamp[0] = timestamp[0] + np.uint32(0x8000)
+                timestamp[0] = timestamp[0] + 2**16
                 tlu_flag = 1
 
             # TODO: make this nicer, what is this??
-            frame_id[0] = last_frame_id + ((timestamp[0] - last_timestamp) & 0x7FFF) / FRAME_UNIT_CYCLE  # artificial frame number (aligned to M26 frames) of TLU word
+            frame_id[0] = last_frame_id + ((timestamp[0] - last_timestamp) & 0x7FFF) / FRAME_UNIT_CYCLE  # Artificial frame number (aligned to M26 frames) of TLU word
             hits[hit_index]['frame'] = frame_id[0]
             hits[hit_index]['plane'] = 255  # TLU data is indicated with this plane number
-            hits[hit_index]['time_stamp'] = timestamp[0]  # timestamp of TLU word
+            hits[hit_index]['time_stamp'] = timestamp[0]  # Timestamp of TLU word
             hits[hit_index]['trigger_number'] = trigger_number
             hits[hit_index]['column'] = tlu_flag
-            hits[hit_index]['row'] = np.uint16(((timestamp[0] - last_timestamp) & 0x7FFF) % FRAME_UNIT_CYCLE)  # number of clock cycles between TLU word timestamp and timestamp of last M26 frame in units of full FRAME_UNIT_CYCLE
-            hits[hit_index]['event_status'] = event_status[0]
+            hits[hit_index]['row'] = ((timestamp[0] - last_timestamp) & 0x7FFF) % FRAME_UNIT_CYCLE  # Distance between of trigger timestamp to last frame (with respect to trigger timestamp)
+            hits[hit_index]['event_status'] = event_status[0]  # event status of TLU
             hit_index = hit_index + 1
             add_event_status(0, event_status, TRG_WORD)
-        else:
+        else:  # Raw data contains unknown word, neither M26 nor TLU word
             add_event_status(0, event_status, UNKNOWN_WORD)
     return (hits[:hit_index], frame_id, last_frame_id, frame_length, word_index, n_words, row,
             event_status, event_number, trigger_number, timestamp, last_timestamp)
@@ -322,19 +328,19 @@ class RawDataInterpreter(object):
 
     def reset(self):  # Reset variables
         # Per frame variables
-        self.frame_id = np.zeros(7, np.uint32)  # The counter value of the actual frame, 6 Mimosa planes + TLU
+        self.frame_id = np.zeros(shape=(7, ), dtype=np.uint32)  # The counter value of the actual frame, 6 Mimosa planes + TLU
         self.last_frame_id = self.frame_id[1]
-        self.frame_length = np.ones(6, np.int32) * -1  # The number of data words in the actual frame
-        self.word_index = np.zeros(6, np.int32) * -1  # The word index per device of the actual frame
-        self.timestamp = np.zeros(7, np.uint32)  # The timestamp for each plane (in units of 40 MHz), first index corresponds to TLU word timestamp, last 6 indices are timestamps of M26 frames
+        self.frame_length = np.ones(shape=(6, ), dtype=np.int32) * -1  # The number of data words in the actual frame
+        self.word_index = np.zeros(shape=(6, ), dtype=np.int32)  # The word index per device of the actual frame
+        self.timestamp = np.zeros(shape=(7, ), dtype=np.uint32)  # The timestamp for each plane (in units of 40 MHz), first index corresponds to TLU word timestamp, last 6 indices are timestamps of M26 frames
         self.last_timestamp = self.timestamp[1]
-        self.n_words = np.zeros(6, np.uint32)  # The number of words containing column / row info
-        self.row = np.ones(6, np.int32) * -1  # the actual readout row (rolling shutter)
+        self.n_words = np.zeros(shape=(6, ), dtype=np.uint32)  # The number of words containing column / row info
+        self.row = np.ones(shape=(6, ), dtype=np.int32) * -1  # The actual readout row (rolling shutter)
 
         # Per event variables
-        self.tlu_word_index = np.zeros(6, np.uint32)  # TLU buffer index for each plane; needed to append hits
+        self.tlu_word_index = np.zeros(shape=(6, ), dtype=np.uint32)  # TLU buffer index for each plane; needed to append hits
         self.event_status = np.zeros(shape=(7, ), dtype=np.uint32)  # Actual event status for each plane, TLU and 6 Mimosa planes
-        self.event_number = np.ones(6, np.int64) * -1  # The event counter set by the software counting full events for each plane
+        self.event_number = np.ones(shape=(6, ), dtype=np.int64) * -1  # The event counter set by the software counting full events for each plane
         self.trigger_number = 0  # The trigger number of the actual event
 
     def interpret_raw_data(self, raw_data):

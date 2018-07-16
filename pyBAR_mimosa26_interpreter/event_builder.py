@@ -1,4 +1,4 @@
-''' Class to convert M26 hit table into events (be more precise here!)
+''' Class to convert M26 hit table into events using trigger timestamps.
 
 '''
 from numba import njit
@@ -16,8 +16,22 @@ def _correlate_ts_to_range(m26_ts_start, m26_ts_stop, ts_trigger_data, correlati
     '''
     Correlate trigger timestamp to all data for which the trigger timestamp is within readout frame (integration time) of the actual
     frame data (defined by timestamp start and stop of frame data).
+
+    Parameters:
+    -----------
+    m26_ts_start : array
+        Start timestamp of the readout window of each frame data (row)
+    m26_ts_stop : array
+        Stop timestamp of the readout window of each frame data (row)
+    ts_trigger_data : array
+        Timestamp of the trigger word
+    correlation_buffer : array
+        Buffer array to store the correlated data
+    last_chunk : boolean
+        Indicator for last chunk
     '''
 
+    # set all used indices to zero
     m26_ts_index = 0
     trigger_data_ts_index = 0
     buffer_index = 0
@@ -26,7 +40,7 @@ def _correlate_ts_to_range(m26_ts_start, m26_ts_stop, ts_trigger_data, correlati
     n_ts_trigger_data = ts_trigger_data.shape[0]
 
     while m26_ts_index < n_m26_ts_start and trigger_data_ts_index < n_ts_trigger_data:
-        # find trigger data timestamp which lies iwthin timestamp start and stop of M26
+        # find trigger data timestamp which lies within timestamp start and stop of M26
         if m26_ts_start[m26_ts_index] > ts_trigger_data[trigger_data_ts_index]:
             trigger_data_ts_index += 1
         elif m26_ts_stop[m26_ts_index] < ts_trigger_data[trigger_data_ts_index]:
@@ -69,6 +83,15 @@ def _correlate_ts_to_range(m26_ts_start, m26_ts_stop, ts_trigger_data, correlati
 def _correlate_to_time_ref(m26_trig_number, ref_trig_number, correlation_buffer):
     '''
     Correlate data for which M26 and time reference trigger number is the same.
+
+    Parameters:
+    -----------
+    m26_trig_number : array
+        Trigger numbers of Mimosa26 data
+    ref_trig_number : array
+        Trigger numbers of time reference data
+    correlation_buffer : array
+        Buffer array to store the correlated data
     '''
 
     m26_index = 0
@@ -154,9 +177,11 @@ class EventBuilder(object):
         m26_data_selection = np.logical_and(hits["plane"] == plane, hits["column"] < 1152)
         hit_data = np.append(hit_data, hits[m26_data_selection][["frame", "time_stamp", "column", "row"]])
 
-        # calculate for each frame data the actual start timestamp of this specific row readout using the frame of the readout and the row number
+        # Calculate for each frame data (row) the actual start timestamp of this specific row readout using the frame of the readout and the row number.
+        # Substraction of two frames is needed since frame data comes two frame after the beginning of the actual frame data (row) readout.
+        # Additional substraction of lower limit is done in order to take into account the offset between (asynchronous) clocks of Mimosa26 and readout board.
         m26_timestamp_start = np.int64(hit_data["frame"]) * FRAME_UNIT_CYCLE + np.int64(hit_data["row"]) * ROW_UNIT_CYCLE - 2 * FRAME_UNIT_CYCLE - LOWER_LIMIT
-        # stop timestamp of actual frame data
+        # Stop timestamp of actual frame data (row), one readout of specific row lasts one frame.
         m26_timestamp_stop = m26_timestamp_start + LOWER_LIMIT + FRAME_UNIT_CYCLE
         # something like timestamp of TLU word, aligned to M26 frame
         trigger_data_timestamp = np.int64(trigger_data['frame']) * FRAME_UNIT_CYCLE + np.int64(trigger_data["row"])
