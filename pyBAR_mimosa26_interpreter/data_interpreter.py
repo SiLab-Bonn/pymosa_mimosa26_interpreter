@@ -148,7 +148,7 @@ class DataInterpreter(object):
                 description = np.zeros((1, ), dtype=raw_data_interpreter.hit_dtype).dtype
 
                 if self.create_hit_table:
-                    hit_table = out_file_h5.create_table(out_file_h5.root,
+                    hit_table = out_file_h5.create_table(where=out_file_h5.root,
                                                          name='Hits',
                                                          description=description,
                                                          title='hit_data',
@@ -195,15 +195,19 @@ class DataInterpreter(object):
                         logging.info('Store histograms and create plots for plane %d', plane)
 
                         if self.create_occupancy_hist:
-                            occupancy_array = out_file_h5.create_carray(out_file_h5.root, name='HistOcc_plane%d' % plane,
+                            occupancy_array = out_file_h5.create_carray(where=out_file_h5.root,
+                                                                        name='HistOcc_plane%d' % plane,
                                                                         title='Occupancy Histogram of Mimosa plane %d' % plane,
                                                                         atom=tb.Atom.from_dtype(occupancy_hist[plane - 1].dtype),
-                                                                        shape=occupancy_hist[plane - 1].shape, filters=self._filter_table)
+                                                                        shape=occupancy_hist[plane - 1].shape,
+                                                                        filters=self._filter_table)
                             occupancy_array[:] = occupancy_hist[plane - 1]
                             try:
                                 if self.output_pdf:
-                                    plotting.plot_fancy_occupancy(occupancy_hist[plane - 1].T, z_max='median',
-                                                                  title='Occupancy for plane %d' % plane, filename=self.output_pdf)
+                                    plotting.plot_fancy_occupancy(hist=occupancy_hist[plane - 1].T,
+                                                                  title='Occupancy for plane %d' % plane,
+                                                                  z_max='median',
+                                                                  filename=self.output_pdf)
                             except Exception:
                                 logging.warning('Could not create occupancy map plot!')
 
@@ -254,7 +258,9 @@ class DataInterpreter(object):
         description = np.zeros((1, ), dtype=self._event_builder.event_table_dtype).dtype
 
         with tb.open_file(output_file, 'w') as out_file_h5:
-            hit_table_out = out_file_h5.create_table(out_file_h5.root, name='Hits', description=description,
+            hit_table_out = out_file_h5.create_table(where=out_file_h5.root,
+                                                     name='Hits',
+                                                     description=description,
                                                      title='Hit Table for Testbeam Analysis',
                                                      filters=tb.Filters(complib='blosc', complevel=5, fletcher32=False))
 
@@ -284,8 +290,10 @@ class DataInterpreter(object):
 
         with tb.open_file(output_file, 'w') as out_file_h5:
             description = np.zeros((1, ), dtype=self._event_builder.event_table_dtype).dtype
-            hit_table_out = out_file_h5.create_table(out_file_h5.root, name='Hits',
-                                                     description=description, title='hit_data',
+            hit_table_out = out_file_h5.create_table(where=out_file_h5.root,
+                                                     name='Hits',
+                                                     description=description,
+                                                     title='hit_data',
                                                      filters=tb.Filters(complib='blosc', complevel=5, fletcher32=False))
 
             with tb.open_file(input_file, 'r') as in_file_h5:
