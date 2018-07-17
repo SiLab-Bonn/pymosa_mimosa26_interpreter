@@ -119,7 +119,7 @@ def _correlate_to_time_ref(m26_trig_number, ref_trig_number, correlation_buffer)
                 m26_trig_number_index += 1
             if ref_trig_number[ref_index] == ref_trig_number_value:
                 ref_trig_number_index += 1
-            if correlation_buffer.shape[0] - buffer_index <= m26_trig_number_index * ref_trig_number_index:
+            if correlation_buffer.shape[0] - buffer_index <= m26_trig_number_index:
                 print('WARNING: chunksize for correlation buffer is too small!')
                 break
 
