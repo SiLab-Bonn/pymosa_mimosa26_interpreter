@@ -89,8 +89,10 @@ def format_hit_table(input_file, output_file, transpose=False, frame=False, chun
         with tb.open_file(output_file, 'w') as out_file_h5:
             description = np.dtype([('event_number', np.int64), ('frame', np.uint8),
                                     ('column', np.uint16), ('row', np.uint16), ('charge', np.uint16)])
-            hit_table_out = out_file_h5.create_table(out_file_h5.root, name='Hits',
-                                                     description=description, title='Selected hits for test beam analysis',
+            hit_table_out = out_file_h5.create_table(where=out_file_h5.root,
+                                                     name='Hits',
+                                                     description=description,
+                                                     title='Selected hits for test beam analysis',
                                                      filters=tb.Filters(complib='blosc', complevel=5, fletcher32=False))
 
             for i in tqdm(range(0, n_m26, chunk_size)):
