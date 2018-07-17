@@ -16,6 +16,7 @@ General chain of Mimosa26 raw data words:
  - Tailer (2x, HIGH + LOW) [word index 6 + 7]
 
 '''
+import numba
 from numba import njit
 import numpy as np
 
@@ -149,7 +150,7 @@ def add_event_status(plane_id, event_status, status_code):
     event_status[plane_id] |= status_code
 
 
-@njit
+@njit(locals={'last_timestamp': numba.uint32})
 def build_hits(raw_data, frame_id, last_frame_id, frame_length, word_index, n_words, row, event_status,
                event_number, trigger_number, timestamp, last_timestamp, max_hits_per_chunk, trigger_data_format=2):
     ''' Main interpretation function. Loops over the raw data and creates a hit array. Data errors are checked for.
@@ -198,7 +199,7 @@ def build_hits(raw_data, frame_id, last_frame_id, frame_length, word_index, n_wo
     # The raw data order of the Mimosa 26 data should be always START / FRAMEs ID / FRAME LENGTH / DATA
     # Since the clock is the same for each plane; the order is START plane 1, START plane 2, ...
 
-    hits = np.zeros(shape=(max_hits_per_chunk,), dtype=hit_dtype)  # Result hits array
+    hits = np.empty(shape=(max_hits_per_chunk,), dtype=hit_dtype)  # Result hits array
     hit_index = 0  # Pointer to actual hit in resul hit arrray; needed to append hits every event
 
     # Loop over raw data words
@@ -274,40 +275,44 @@ def build_hits(raw_data, frame_id, last_frame_id, frame_length, word_index, n_wo
                         if column >= 1152:  # Column overflow
                             add_event_status(plane_id + 1, event_status, COL_ERROR)
                         for k in range(n_hits + 1):
-                            if hit_index < max_hits_per_chunk:
-                                # Store hits
-                                hits[hit_index]['frame'] = frame_id[plane_id + 1]
-                                hits[hit_index]['plane'] = plane_id + 1
-                                hits[hit_index]['time_stamp'] = timestamp[plane_id + 1]
-                                hits[hit_index]['trigger_number'] = trigger_number
-                                hits[hit_index]['column'] = column + k
-                                hits[hit_index]['row'] = row[plane_id]
-                                hits[hit_index]['event_status'] = event_status[plane_id + 1]
-                                hit_index = hit_index + 1
-                            else:
-                                # Truncated data
-                                add_event_status(plane_id + 1, event_status, TRUNC_EVENT)
+                            if hit_index >= hits.shape[0]:
+                                hits_tmp = np.empty(shape=(max_hits_per_chunk,), dtype=hit_dtype)
+                                hits = np.concatenate((hits, hits_tmp))
+                            # Store hits
+                            hits[hit_index]['frame'] = frame_id[plane_id + 1]
+                            hits[hit_index]['plane'] = plane_id + 1
+                            hits[hit_index]['time_stamp'] = timestamp[plane_id + 1]
+                            hits[hit_index]['trigger_number'] = trigger_number
+                            hits[hit_index]['column'] = column + k
+                            hits[hit_index]['row'] = row[plane_id]
+                            hits[hit_index]['event_status'] = event_status[plane_id + 1]
+                            hit_index = hit_index + 1
 
                         # Reset event status
                         for i in range(1, 7):
                             event_status[i] = 0
         elif is_trigger_word(word):  # Raw data word is TLU word
             trigger_number = get_trigger_number(word, trigger_data_format)
-            # TODO: what is this? make this nicer
+            # Calculating 31bit timestamp from 15bit trigger timestamp
+            # and use last_timestamp (frame header timestamp) for that.
+            # Assumption: last_timestamp is updated more frequent than
+            # the 15bit trigger timestamp can overflow. The frame is occurring
+            # every 4608 clock cycles (115.2 us).
             timestamp[0] = get_trigger_timestamp(word) | (last_timestamp & 0xFFFF8000)
-            tlu_flag = 0
-            # TODO: what is this?
-            if (timestamp[0] - last_timestamp) & 0x8000 == 0x8000:  # if timestamp < ts_pre
-                timestamp[0] = timestamp[0] + 2**16
-                tlu_flag = 1
-
+            # Check if trigger timestamp overflow has occurred
+            # and add the length of the trigger timstamp counter
+            if timestamp[0] < last_timestamp:
+                timestamp[0] = timestamp[0] + 2**15
             # TODO: make this nicer, what is this??
             frame_id[0] = last_frame_id + ((timestamp[0] - last_timestamp) & 0x7FFF) / FRAME_UNIT_CYCLE  # Artificial frame number (aligned to M26 frames) of TLU word
+            if hit_index >= hits.shape[0]:
+                hits_tmp = np.empty(shape=(max_hits_per_chunk,), dtype=hit_dtype)
+                hits = np.concatenate((hits, hits_tmp))
             hits[hit_index]['frame'] = frame_id[0]
             hits[hit_index]['plane'] = 255  # TLU data is indicated with this plane number
             hits[hit_index]['time_stamp'] = timestamp[0]  # Timestamp of TLU word
             hits[hit_index]['trigger_number'] = trigger_number
-            hits[hit_index]['column'] = tlu_flag
+            hits[hit_index]['column'] = 0
             hits[hit_index]['row'] = ((timestamp[0] - last_timestamp) & 0x7FFF) % FRAME_UNIT_CYCLE  # Distance between of trigger timestamp to last frame (with respect to trigger timestamp)
             hits[hit_index]['event_status'] = event_status[0]  # event status of TLU
             hit_index = hit_index + 1
