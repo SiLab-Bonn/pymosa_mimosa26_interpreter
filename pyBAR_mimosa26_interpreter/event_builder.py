@@ -146,7 +146,7 @@ def _correlate_to_time_ref(m26_trig_number, ref_trig_number, correlation_buffer)
 class EventBuilder(object):
     ''' Class to convert M26 hit table into events'''
 
-    def __init__(self, chunk_size=5000000):
+    def __init__(self, chunk_size=500000):
         self.event_table_dtype = [('event_number', '<i8'), ('event_timestamp', '<u4'), ('trigger_number', '<u4'), ('frame', "<u4"),
                                   ('m26_timestamp', '<u4'), ("column", '<u2'), ("row", '<u4'), ("tlu_y", '<u4'), ('tlu_frame', "<u4")]
         self.trigger_data_dtype = [('frame', '<u4'), ('time_stamp', '<u4'), ('trigger_number', '<u2'), ('row', '<u2')]

@@ -247,7 +247,7 @@ class DataInterpreter(object):
                                            output_file=self._analyzed_data_file[:-3] + '_event_build_aligned_plane_%i.h5' % plane,
                                            chunk_size=int(self.chunk_size / 10))  # use smaller chunksize, otherwise correlation buffer needs to be too large
 
-    def build_events_from_hit_table(self, input_file, output_file, plane, chunk_size=5000000):
+    def build_events_from_hit_table(self, input_file, output_file, plane, chunk_size=500000):
         '''
         Build events from M26 hit table using TLU data words. One TLU data word is assigned to one M26 data frame.
         '''
