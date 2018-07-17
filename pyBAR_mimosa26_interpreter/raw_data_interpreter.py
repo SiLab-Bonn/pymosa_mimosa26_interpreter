@@ -303,17 +303,19 @@ def build_hits(raw_data, frame_id, last_frame_id, frame_length, word_index, n_wo
             # and add the length of the trigger timstamp counter
             if timestamp[0] < last_timestamp:
                 timestamp[0] = timestamp[0] + 2**15
-            # TODO: make this nicer, what is this??
-            frame_id[0] = last_frame_id + ((timestamp[0] - last_timestamp) & 0x7FFF) / FRAME_UNIT_CYCLE  # Artificial frame number (aligned to M26 frames) of TLU word
+            # Get actual frame number where trigger word occured:
+            # This is last frame number (relative to where 31 bit trigger timestamp is calculated) + offset between last timestamp
+            # and 31 bit trigger timestamp in units of full frame cycles.
+            frame_id[0] = last_frame_id + np.floor_divide(timestamp[0] - last_timestamp, FRAME_UNIT_CYCLE)
             if hit_index >= hits.shape[0]:
                 hits_tmp = np.empty(shape=(max_hits_per_chunk,), dtype=hit_dtype)
                 hits = np.concatenate((hits, hits_tmp))
-            hits[hit_index]['frame'] = frame_id[0]
+            hits[hit_index]['frame'] = frame_id[0]  # Frame number of trigger timestamp (aligned to Mimosa26 frame)
             hits[hit_index]['plane'] = 255  # TLU data is indicated with this plane number
             hits[hit_index]['time_stamp'] = timestamp[0]  # Timestamp of TLU word
             hits[hit_index]['trigger_number'] = trigger_number
             hits[hit_index]['column'] = 0
-            hits[hit_index]['row'] = ((timestamp[0] - last_timestamp) & 0x7FFF) % FRAME_UNIT_CYCLE  # Distance between of trigger timestamp to last frame (with respect to trigger timestamp)
+            hits[hit_index]['row'] = (timestamp[0] - last_timestamp) % FRAME_UNIT_CYCLE  # Distance between trigger timestamp to timestamp of last Mimosa26 frame
             hits[hit_index]['event_status'] = event_status[0]  # event status of TLU
             hit_index = hit_index + 1
             add_event_status(0, event_status, TRG_WORD)
