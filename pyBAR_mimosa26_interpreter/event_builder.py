@@ -53,10 +53,10 @@ def _correlate_ts_to_range(m26_ts_start, m26_ts_stop, ts_trigger_data, correlati
 
             if ts_start_index + 1 == m26_ts_start[m26_ts_index:].shape[0] and not last_chunk:
                 print('WARNING: not enough M26 data in chunk!')
-                return correlation_buffer[:buffer_index], m26_ts_index, trigger_data_ts_index
+                break
             if correlation_buffer.shape[0] - buffer_index < ts_start_index:
                 print('WARNING: chunksize for correlation buffer is too small!')
-                return correlation_buffer[:buffer_index], m26_ts_index, trigger_data_ts_index
+                break
 
             # correlate
             for index in range(ts_start_index):
@@ -73,10 +73,10 @@ def _correlate_ts_to_range(m26_ts_start, m26_ts_stop, ts_trigger_data, correlati
     # TODO: make this nicer
     if trigger_data_ts_index < n_ts_trigger_data:
         print('WARNING: not enough trigger data in chunk!')
-        return correlation_buffer[:buffer_index], m26_ts_index, trigger_data_ts_index
-    elif m26_ts_index < n_m26_ts_start:
+    if m26_ts_index < n_m26_ts_start:
         print('WARNING: not enough M26 data in chunk!')
-        return correlation_buffer[:buffer_index], m26_ts_index, trigger_data_ts_index
+
+    return correlation_buffer[:buffer_index], m26_ts_index, trigger_data_ts_index
 
 
 @njit
@@ -121,7 +121,7 @@ def _correlate_to_time_ref(m26_trig_number, ref_trig_number, correlation_buffer)
                 ref_trig_number_index += 1
             if correlation_buffer.shape[0] - buffer_index <= m26_trig_number_index * ref_trig_number_index:
                 print('WARNING: chunksize for correlation buffer is too small!')
-                return correlation_buffer[:buffer_index], m26_index, ref_index
+                break
 
             # correlate
             for index in range(m26_trig_number_index):
@@ -135,10 +135,8 @@ def _correlate_to_time_ref(m26_trig_number, ref_trig_number, correlation_buffer)
 
     if ref_index < n_ref_trig_number:
         print('WARNING: not enough time reference data in chunk!')
-        return correlation_buffer[:buffer_index], m26_index, ref_index
-    elif m26_index < n_m26_trig_number:
+    if m26_index < n_m26_trig_number:
         print('WARNING: not enough M26 data in chunk!')
-        return correlation_buffer[:buffer_index], m26_index, ref_index
 
     return correlation_buffer[:buffer_index], m26_index, ref_index
 
