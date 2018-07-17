@@ -139,7 +139,7 @@ def get_trigger_timestamp(word):  # time stamp of TLU word
 @njit
 def get_trigger_number(word, trigger_data_format):  # trigger number of TLU word
     if trigger_data_format == 2:
-        return word & 0xFFFF
+        return word & 0x0000FFFF
     else:
         return word & 0x7FFFFFFF
 
