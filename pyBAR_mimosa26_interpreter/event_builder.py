@@ -150,8 +150,8 @@ class EventBuilder(object):
         self.trigger_data_dtype = [('frame', '<u4'), ('time_stamp', '<u4'), ('trigger_number', '<u2'), ('row', '<u2')]
         self.hit_data_dtype = [('frame', '<u4'), ('time_stamp', '<u4'), ('column', '<u2'), ('row', '<u2')]
         self.correlation_buffer_dtype = [("m26_ts_start", "<i8"), ("m26_ts_stop", "<i8"), ("ts_trigger_data", "<i8"),
-                                         ("m26_index", "<u8"), ("trigger_data_index", "<u8")]
-        self.correlation_buffer_time_ref_dtype = [("trg_number_time_ref", "<u8"), ("m26_data_index", "<u8"), ("time_ref_data_index", "<u8")]
+                                         ("m26_index", "<i8"), ("trigger_data_index", "<i8")]
+        self.correlation_buffer_time_ref_dtype = [("trg_number_time_ref", "<i8"), ("m26_data_index", "<i8"), ("time_ref_data_index", "<i8")]
 
         # set chunksize
         self.chunk_size = chunk_size
