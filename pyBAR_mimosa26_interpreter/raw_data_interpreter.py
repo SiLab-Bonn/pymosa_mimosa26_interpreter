@@ -74,7 +74,7 @@ def get_frame_id_low(word):  # Get the frame id from the frame id low word
 
 @njit
 def is_frame_header(word):  # Check if frame header high word
-    return 0x000F0000 & word == 0x10000
+    return 0x00010000 & word == 0x10000
 
 
 @njit
