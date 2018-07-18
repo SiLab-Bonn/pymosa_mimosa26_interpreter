@@ -54,7 +54,7 @@ def is_mimosa_data(word):  # Check for Mimosa data word
 
 @njit
 def is_data_loss(word):
-    return 0x00020000 & word == 0x20000
+    return 0x00020000 & word == 0x00020000
 
 
 @njit
@@ -74,7 +74,7 @@ def get_frame_id_low(word):  # Get the frame id from the frame id low word
 
 @njit
 def is_frame_header(word):  # Check if frame header high word
-    return 0x00010000 & word == 0x10000
+    return 0x00010000 & word == 0x00010000
 
 
 @njit
@@ -108,12 +108,12 @@ def get_row(word):
 
 
 @njit
-def get_m26_timestamp_high(word):  # time stamp of Mimosa26 data from frame header high
+def get_m26_timestamp_low(word):  # time stamp of Mimosa26 data from frame header low
     return word & 0x0000FFFF
 
 
 @njit
-def get_m26_timestamp_low(word):  # time stamp of Mimosa26 data from frame header low
+def get_m26_timestamp_high(word):  # time stamp of Mimosa26 data from frame header high
     return (0x0000FFFF & word) << 16
 
 
@@ -218,7 +218,7 @@ def build_hits(raw_data, frame_id, last_frame_id, frame_length, word_index, n_wo
                     last_timestamp = timestamp[1]  # Timestamp of last Mimosa26 frame
                     last_frame_id = frame_id[1]  # Last Mimosa26 frame number
                 # Get Mimosa26 timestamp from header high word
-                timestamp[plane_id + 1] = get_m26_timestamp_high(word) | (timestamp[plane_id + 1] & 0xFFFF0000)
+                timestamp[plane_id + 1] = get_m26_timestamp_low(word) | (timestamp[plane_id + 1] & 0xFFFF0000)
                 word_index[plane_id] = 0
             elif word_index[plane_id] == -1:  # Trash data
                 # TODO: add event status trash data
@@ -231,7 +231,7 @@ def build_hits(raw_data, frame_id, last_frame_id, frame_length, word_index, n_wo
                         add_event_status(plane_id + 1, event_status, TS_OVERFLOW)
 
                     # Get Mimosa26 timestamp from header low word
-                    timestamp[plane_id + 1] = get_m26_timestamp_low(word) | timestamp[plane_id + 1] & 0x0000FFFF
+                    timestamp[plane_id + 1] = get_m26_timestamp_high(word) | timestamp[plane_id + 1] & 0x0000FFFF
 
                 elif word_index[plane_id] == 2:  # Next word should be the frame ID high word
                     frame_id[plane_id + 1] = get_frame_id_high(word) | (frame_id[plane_id + 1] & 0xFFFF0000)
