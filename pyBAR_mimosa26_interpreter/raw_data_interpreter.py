@@ -299,14 +299,20 @@ def build_hits(raw_data, frame_id, last_frame_id, frame_length, word_index, n_wo
             # the 15bit trigger timestamp can overflow. The frame is occurring
             # every 4608 clock cycles (115.2 us).
             timestamp[0] = get_trigger_timestamp(word) | (last_timestamp & 0xFFFF8000)
-            # Check if trigger timestamp overflow has occurred
+            # Check if trigger timestamp overflow (15bit) has occurred
             # and add the length of the trigger timstamp counter
             if timestamp[0] < last_timestamp:
                 timestamp[0] = timestamp[0] + 2**15
+            # Check for timestamp overflow (32bit) and calculate timestamp
+            # difference between start of frame and trigger
+            if timestamp[0] < last_timestamp:
+                delta_timestamp = timestamp[0] + (2**32 - last_timestamp)
+            else:
+                delta_timestamp = timestamp[0] - last_timestamp
             # Get actual frame number where trigger word occured:
             # This is last frame number (relative to where 31 bit trigger timestamp is calculated) + offset between last timestamp
             # and 31 bit trigger timestamp in units of full frame cycles.
-            frame_id[0] = last_frame_id + np.floor_divide(timestamp[0] - last_timestamp, FRAME_UNIT_CYCLE)
+            frame_id[0] = last_frame_id + np.floor_divide(delta_timestamp, FRAME_UNIT_CYCLE)
             if hit_index >= hits.shape[0]:
                 hits_tmp = np.empty(shape=(max_hits_per_chunk,), dtype=hit_dtype)
                 hits = np.concatenate((hits, hits_tmp))
@@ -315,7 +321,7 @@ def build_hits(raw_data, frame_id, last_frame_id, frame_length, word_index, n_wo
             hits[hit_index]['time_stamp'] = timestamp[0]  # Timestamp of TLU word
             hits[hit_index]['trigger_number'] = trigger_number
             hits[hit_index]['column'] = 0
-            hits[hit_index]['row'] = (timestamp[0] - last_timestamp) % FRAME_UNIT_CYCLE  # Distance between trigger timestamp to timestamp of last Mimosa26 frame
+            hits[hit_index]['row'] = delta_timestamp % FRAME_UNIT_CYCLE  # Distance between trigger timestamp to timestamp of last Mimosa26 frame
             hits[hit_index]['event_status'] = event_status[0]  # event status of TLU
             hit_index = hit_index + 1
             add_event_status(0, event_status, TRG_WORD)
