@@ -222,7 +222,7 @@ def build_hits(raw_data, frame_id, last_frame_id, frame_length, word_index, n_wo
                 if plane_id == 0:
                     last_timestamp = timestamp[1]  # Timestamp of last Mimosa26 frame
                     last_frame_id = frame_id[1]  # Last Mimosa26 frame number
-                # Get Mimosa26 timestamp from header high word
+                # Get Mimosa26 timestamp from header low word
                 timestamp[plane_id + 1] = get_m26_timestamp_low(word) | (timestamp[plane_id + 1] & 0xFFFF0000)
                 word_index[plane_id] = 0
             elif word_index[plane_id] == -1:  # Trash data
@@ -230,9 +230,9 @@ def build_hits(raw_data, frame_id, last_frame_id, frame_length, word_index, n_wo
                 pass
             else:  # Correct M26 data
                 word_index[plane_id] += 1
-                if word_index[plane_id] == 1:  # After header high word header low word comes
-                    # TODO: make this nicer
-                    if (timestamp[plane_id + 1] >> 16) != (0x0000FFFF & word) and (((timestamp[plane_id + 1] >> 16) + 1) & 0xFFFF) != (0x0000FFFF & word):  # Timestamp has overflow
+                if word_index[plane_id] == 1:  # After header low word header high word comes
+                    # Check for 32bit timestamp overflow
+                    if get_m26_timestamp_high(word) < (timestamp[plane_id + 1] & 0xFFFF0000):  # Timestamp has overflow
                         add_event_status(plane_id + 1, event_status, TS_OVERFLOW)
 
                     # Get Mimosa26 timestamp from header low word
