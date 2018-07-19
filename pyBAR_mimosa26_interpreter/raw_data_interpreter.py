@@ -64,12 +64,12 @@ def get_plane_number(word):  # There are 6 planes in the stream, starting from 1
 
 
 @njit
-def get_frame_id_high(word):  # Get the frame id from the frame id high word
+def get_frame_id_low(word):  # Get the frame id from the frame id low word
     return 0x0000FFFF & word
 
 
 @njit
-def get_frame_id_low(word):  # Get the frame id from the frame id low word
+def get_frame_id_high(word):  # Get the frame id from the frame id high word
     return (0x0000FFFF & word) << 16
 
 
@@ -238,11 +238,11 @@ def build_hits(raw_data, frame_id, last_frame_id, frame_length, word_index, n_wo
                     # Get Mimosa26 timestamp from header low word
                     timestamp[plane_id + 1] = get_m26_timestamp_high(word) | timestamp[plane_id + 1] & 0x0000FFFF
 
-                elif word_index[plane_id] == 2:  # Next word should be the frame ID high word
-                    frame_id[plane_id + 1] = get_frame_id_high(word) | (frame_id[plane_id + 1] & 0xFFFF0000)
+                elif word_index[plane_id] == 2:  # Next word should be the frame ID low word
+                    frame_id[plane_id + 1] = get_frame_id_low(word) | (frame_id[plane_id + 1] & 0xFFFF0000)
 
-                elif word_index[plane_id] == 3:  # Next word should be the frame ID low word
-                    frame_id[plane_id + 1] = get_frame_id_low(word) | (frame_id[plane_id + 1] & 0x0000FFFF)
+                elif word_index[plane_id] == 3:  # Next word should be the frame ID high word
+                    frame_id[plane_id + 1] = get_frame_id_high(word) | (frame_id[plane_id + 1] & 0x0000FFFF)
 
                 elif word_index[plane_id] == 4:  # Next word should be the frame length high word
                     frame_length[plane_id] = get_frame_length(word)
@@ -363,17 +363,17 @@ class RawDataInterpreter(object):
         # Per frame variables
         self.frame_id = np.zeros(shape=(7, ), dtype=np.uint32)  # The counter value of the actual frame, 6 Mimosa planes + TLU
         self.last_frame_id = self.frame_id[1]
-        self.frame_length = np.ones(shape=(6, ), dtype=np.int32) * -1  # The number of data words in the actual frame
+        self.frame_length = np.full(shape=(6, ), dtype=np.int32, fill_value=-1)  # The number of data words in the actual frame
         self.word_index = np.zeros(shape=(6, ), dtype=np.int32)  # The word index per device of the actual frame
         self.timestamp = np.zeros(shape=(7, ), dtype=np.uint32)  # The timestamp for each plane (in units of 40 MHz), first index corresponds to TLU word timestamp, last 6 indices are timestamps of M26 frames
         self.last_timestamp = self.timestamp[1]
         self.n_words = np.zeros(shape=(6, ), dtype=np.uint32)  # The number of words containing column / row info
-        self.row = np.ones(shape=(6, ), dtype=np.int32) * -1  # The actual readout row (rolling shutter)
+        self.row = np.full(shape=(6, ), dtype=np.int32, fill_value=-1)  # The actual readout row (rolling shutter)
 
         # Per event variables
         self.tlu_word_index = np.zeros(shape=(6, ), dtype=np.uint32)  # TLU buffer index for each plane; needed to append hits
         self.event_status = np.zeros(shape=(7, ), dtype=np.uint32)  # Actual event status for each plane, TLU and 6 Mimosa planes
-        self.event_number = np.ones(shape=(6, ), dtype=np.int64) * -1  # The event counter set by the software counting full events for each plane
+        self.event_number = np.full(shape=(6, ), dtype=np.int64, fill_value=-1)  # The event counter set by the software counting full events for each plane
         self.trigger_number = -1  # The trigger number of the actual event
 
     def interpret_raw_data(self, raw_data):
