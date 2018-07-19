@@ -231,6 +231,8 @@ def build_hits(raw_data, frame_id, last_frame_id, frame_length, m26_data_loss, w
                 m26_timestamps[plane_id] = get_m26_timestamp_low(word) | (m26_timestamps[plane_id] & 0xFFFF0000)
                 word_index[plane_id] = 0
                 # Reset parameters after header
+                frame_length[plane_id] = -1
+                n_words[plane_id] = 0
                 m26_data_loss[plane_id] = False
             elif m26_data_loss[plane_id] is True:  # Trash data
                 # TODO: add event status trash data
@@ -263,8 +265,6 @@ def build_hits(raw_data, frame_id, last_frame_id, frame_length, m26_data_loss, w
                         add_event_status(plane_id + 1, event_status, TAILER_H_ERROR)
 
                 elif word_index[plane_id] == 5 + frame_length[plane_id] + 2:  # Last word should be the frame tailer low word
-                    frame_length[plane_id] = -1
-                    n_words[plane_id] = 0
                     if not is_frame_tailer_low(word, plane=plane_id + 1):
                         add_event_status(plane_id + 1, event_status, TAILER_L_ERROR)
 
