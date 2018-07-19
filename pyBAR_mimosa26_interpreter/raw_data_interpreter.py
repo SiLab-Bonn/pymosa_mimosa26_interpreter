@@ -202,7 +202,11 @@ def build_hits(raw_data, frame_id, last_frame_id, frame_length, word_index, n_wo
 
     hits = np.empty(shape=(max_hits_per_chunk,), dtype=hit_dtype)  # Result hits array
     hit_index = 0  # Pointer to actual hit in resul hit arrray; needed to append hits every event
-
+    # Initialize last trigger number
+    if trigger_number <= 0:
+        trigger_number_last = -1
+    else:
+        trigger_number_last = trigger_number - 1
     # Loop over raw data words
     for raw_i in range(raw_data.shape[0]):
         word = raw_data[raw_i]  # Actual raw data word
@@ -283,7 +287,10 @@ def build_hits(raw_data, frame_id, last_frame_id, frame_length, word_index, n_wo
                             hits[hit_index]['frame'] = frame_id[plane_id + 1]
                             hits[hit_index]['plane'] = plane_id + 1
                             hits[hit_index]['time_stamp'] = timestamp[plane_id + 1]
-                            hits[hit_index]['trigger_number'] = trigger_number
+                            if trigger_number < 0:  # not yet initialized
+                                hits[hit_index]['trigger_number'] = 0
+                            else:
+                                hits[hit_index]['trigger_number'] = trigger_number
                             hits[hit_index]['column'] = column + k
                             hits[hit_index]['row'] = row[plane_id]
                             hits[hit_index]['event_status'] = event_status[plane_id + 1]
@@ -293,7 +300,20 @@ def build_hits(raw_data, frame_id, last_frame_id, frame_length, word_index, n_wo
                         for i in range(1, 7):
                             event_status[i] = 0
         elif is_trigger_word(word):  # Raw data word is TLU word
-            trigger_number = get_trigger_number(word, trigger_data_format)
+            # Reset event status
+            event_status[0] = 0
+            # Trigger word
+            add_event_status(0, event_status, TRG_WORD)
+            trigger_number_tmp = get_trigger_number(word, trigger_data_format)
+            # Check for valid trigger number
+            # Trigger number has to increase by 1
+            if trigger_number_last >= 0 and trigger_number >= 0:
+                # Check if trigger number has increased by 1
+                # and exclude overflow case
+                if trigger_number_last + 1 != trigger_number_tmp and trigger_number_tmp > 0:
+                    add_event_status(0, event_status, TRG_ERROR)
+            trigger_number_last = trigger_number
+            trigger_number = trigger_number_tmp
             # Calculating 31bit timestamp from 15bit trigger timestamp
             # and use last_timestamp (frame header timestamp) for that.
             # Assumption: last_timestamp is updated more frequent than
@@ -325,7 +345,6 @@ def build_hits(raw_data, frame_id, last_frame_id, frame_length, word_index, n_wo
             hits[hit_index]['row'] = delta_timestamp % FRAME_UNIT_CYCLE  # Distance between trigger timestamp to timestamp of last Mimosa26 frame
             hits[hit_index]['event_status'] = event_status[0]  # event status of TLU
             hit_index = hit_index + 1
-            add_event_status(0, event_status, TRG_WORD)
         else:  # Raw data contains unknown word, neither M26 nor TLU word
             add_event_status(0, event_status, UNKNOWN_WORD)
     return (hits[:hit_index], frame_id, last_frame_id, frame_length, word_index, n_words, row,
@@ -355,7 +374,7 @@ class RawDataInterpreter(object):
         self.tlu_word_index = np.zeros(shape=(6, ), dtype=np.uint32)  # TLU buffer index for each plane; needed to append hits
         self.event_status = np.zeros(shape=(7, ), dtype=np.uint32)  # Actual event status for each plane, TLU and 6 Mimosa planes
         self.event_number = np.ones(shape=(6, ), dtype=np.int64) * -1  # The event counter set by the software counting full events for each plane
-        self.trigger_number = 0  # The trigger number of the actual event
+        self.trigger_number = -1  # The trigger number of the actual event
 
     def interpret_raw_data(self, raw_data):
         chunk_result = build_hits(raw_data=raw_data,
