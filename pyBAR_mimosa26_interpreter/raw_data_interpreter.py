@@ -14,7 +14,7 @@ The raw data structure of Mimosa26 data looks as follows:
  - Hit data (column and row of hit pixel)
  - ...
  - ...
- - Frame tailer HIGH and LOW (indicates end of Mimosa26 frame) [word index 6 + 7]
+ - Frame trailer HIGH and LOW (indicates end of Mimosa26 frame) [word index 6 + 7]
 
 '''
 import numba
@@ -38,8 +38,8 @@ UNKNOWN_WORD = 0x00000010  # Event has unknown words
 UNEVEN_EVENT = 0x00000020  # Event has uneven amount of data words
 TRG_ERROR = 0x00000040  # A trigger error occurred
 TRUNC_EVENT = 0x00000080  # Event had too many hits and was truncated
-TAILER_H_ERROR = 0x00000100  # tailer high error
-TAILER_L_ERROR = 0x00000200  # tailer low error
+TRAILER_H_ERROR = 0x00000100  # trailer high error
+TRAILER_L_ERROR = 0x00000200  # trailer low error
 MIMOSA_OVERFLOW = 0x00000400  # mimosa overflow
 NO_HIT = 0x00000800  # events without any hit, useful for trigger number debugging
 COL_ERROR = 0x00001000  # column number error
@@ -79,12 +79,12 @@ def is_frame_header(word):  # Check if frame header high word (frame start flag 
 
 
 @njit
-def is_frame_tailer_high(word):  # Check if frame tailer high word
+def is_frame_trailer_high(word):  # Check if frame trailer high word
     return word & 0xFFFF == 0xaa50
 
 
 @njit
-def is_frame_tailer_low(word, plane):  # Check if frame header low word for the actual plane
+def is_frame_trailer_low(word, plane):  # Check if frame header low word for the actual plane
     return (word & 0xFFFF) == (0xaa50 | plane)
 
 
@@ -260,13 +260,13 @@ def build_hits(raw_data, frame_id, last_frame_id, frame_length, m26_data_loss, w
                     if frame_length[plane_id] != get_frame_length(word):
                         add_event_status(plane_id + 1, event_status, EVENT_INCOMPLETE)
 
-                elif word_index[plane_id] == 5 + frame_length[plane_id] + 1:  # Next word should be the frame tailer high word
-                    if not is_frame_tailer_high(word):
-                        add_event_status(plane_id + 1, event_status, TAILER_H_ERROR)
+                elif word_index[plane_id] == 5 + frame_length[plane_id] + 1:  # Next word should be the frame trailer high word
+                    if not is_frame_trailer_high(word):
+                        add_event_status(plane_id + 1, event_status, TRAILER_H_ERROR)
 
-                elif word_index[plane_id] == 5 + frame_length[plane_id] + 2:  # Last word should be the frame tailer low word
-                    if not is_frame_tailer_low(word, plane=plane_id + 1):
-                        add_event_status(plane_id + 1, event_status, TAILER_L_ERROR)
+                elif word_index[plane_id] == 5 + frame_length[plane_id] + 2:  # Last word should be the frame trailer low word
+                    if not is_frame_trailer_low(word, plane=plane_id + 1):
+                        add_event_status(plane_id + 1, event_status, TRAILER_L_ERROR)
 
                 elif word_index[plane_id] > 5 + frame_length[plane_id] + 2:  # Too many data words
                     # TODO: add event status trash data
