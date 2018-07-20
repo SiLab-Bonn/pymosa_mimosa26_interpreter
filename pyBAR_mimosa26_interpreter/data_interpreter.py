@@ -27,7 +27,7 @@ def fill_occupancy_hist(hits):
         col = hits[hit_index]['column']
         row = hits[hit_index]['row']
         plane_id = hits[hit_index]['plane'] - 1
-        hist[plane_id][col, row] += 1
+        hist[plane_id, col, row] += 1
 
     return hist
 
