@@ -22,7 +22,7 @@ from numba import njit
 import numpy as np
 
 
-FRAME_UNIT_CYCLE = 4608  # time for one frame in units of 40 MHz clock cylces (115.2 * 40)
+FRAME_UNIT_CYCLE = 4608  # = 115.2 * 40, time for one frame in units of 40 MHz clock cylces
 
 hit_dtype = np.dtype([('plane', '<u1'), ('frame', '<u4'), ('time_stamp', '<u4'), ('trigger_number', '<u2'),
                       ('column', '<u2'), ('row', '<u2'), ('event_status', '<u4')])
