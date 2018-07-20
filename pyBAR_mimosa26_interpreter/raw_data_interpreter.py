@@ -161,8 +161,8 @@ def add_event_status(plane_id, event_status, status_code):
     event_status[plane_id] |= status_code
 
 
-@njit(locals={'last_timestamp': numba.uint32})
-def build_hits(raw_data, frame_id, last_frame_id, frame_length, m26_data_loss, word_index, n_words, row, event_status,
+@njit(locals={})
+def build_hits(raw_data, m26_frame_ids, trigger_frame_id, last_m26_frame_ids, last_trigger_frame_id, frame_length, m26_data_loss, word_index, n_words, row, event_status,
                event_number, trigger_number, m26_timestamps, trigger_timestamp, last_m26_timestamps, last_trigger_timestamp, max_hits_per_chunk, trigger_data_format=2):
     ''' Main interpretation function. Loops over the raw data and creates a hit array. Data errors are checked for.
     A lot of parameters are needed, since the variables have to be buffered for chunked analysis and given for
@@ -172,10 +172,10 @@ def build_hits(raw_data, frame_id, last_frame_id, frame_length, m26_data_loss, w
     -----------
     raw_data : np.array
         The array with the raw data words
-    frame_id : np.array, shape 6
-        The counter value of the actual frame for each plane, 0 if not set
-    last_frame_id : np.array, shape 6
-        The counter value of the last frame for each plane, -1 if not available
+    m26_frame_ids : np.array, shape 6
+        The counter value of the actual frame for each plane, 0 if not set.
+    last_m26_frame_ids : np.array, shape 6
+        The counter value of the last frame for each plane.
     frame_length : np.array, shape 6
         The number of data words in the actual frame frame for each plane, 0 if not set
     m26_data_loss : np.array, shape 6
@@ -234,9 +234,8 @@ def build_hits(raw_data, frame_id, last_frame_id, frame_length, m26_data_loss, w
                 # Reset word index
                 m26_data_loss[plane_id] = True
             elif is_frame_header(word):  # New event for actual plane; events are aligned at this header
-                if plane_id == 0:
-                    last_m26_timestamps = m26_timestamps[0]  # Timestamp of last Mimosa26 frame
-                    last_frame_id = frame_id[1]  # Last Mimosa26 frame number
+                last_m26_timestamps[plane_id] = m26_timestamps[plane_id]  # Timestamp of last Mimosa26 frame
+                last_m26_frame_ids[plane_id] = m26_frame_ids[plane_id]  # Last Mimosa26 frame number
                 # Get Mimosa26 timestamp from header low word
                 m26_timestamps[plane_id] = get_m26_timestamp_low(word) | (m26_timestamps[plane_id] & 0xffff0000)
                 word_index[plane_id] = 0
@@ -258,10 +257,14 @@ def build_hits(raw_data, frame_id, last_frame_id, frame_length, m26_data_loss, w
                     m26_timestamps[plane_id] = get_m26_timestamp_high(word) | m26_timestamps[plane_id] & 0x0000ffff
 
                 elif word_index[plane_id] == 2:  # Next word should be the frame ID low word
-                    frame_id[plane_id + 1] = get_frame_id_low(word) | (frame_id[plane_id + 1] & 0xffff0000)
+                    m26_frame_ids[plane_id] = get_frame_id_low(word) | (m26_frame_ids[plane_id] & 0xffff0000)
 
                 elif word_index[plane_id] == 3:  # Next word should be the frame ID high word
-                    frame_id[plane_id + 1] = get_frame_id_high(word) | (frame_id[plane_id + 1] & 0x0000ffff)
+                    m26_frame_ids[plane_id] = get_frame_id_high(word) | (m26_frame_ids[plane_id] & 0x0000ffff)
+                    if last_m26_frame_ids[plane_id] + 1 != m26_frame_ids[plane_id] and m26_frame_ids[plane_id] != 0 and last_m26_frame_ids[plane_id] != 0:
+                        # TODO: add event status trash data
+                        m26_data_loss[plane_id] = True
+                        continue
 
                 elif word_index[plane_id] == 4:  # Next word should be the frame length high word
                     frame_length[plane_id] = get_frame_length(word)
@@ -306,7 +309,7 @@ def build_hits(raw_data, frame_id, last_frame_id, frame_length, m26_data_loss, w
                                 hits_tmp = np.empty(shape=(max_hits_per_chunk,), dtype=hit_dtype)
                                 hits = np.concatenate((hits, hits_tmp))
                             # Store hits
-                            hits[hit_index]['frame'] = frame_id[plane_id + 1]
+                            hits[hit_index]['frame'] = m26_frame_ids[plane_id]
                             hits[hit_index]['plane'] = plane_id + 1
                             hits[hit_index]['time_stamp'] = m26_timestamps[plane_id]
                             if trigger_number < 0:  # not yet initialized
@@ -341,25 +344,26 @@ def build_hits(raw_data, frame_id, last_frame_id, frame_length, m26_data_loss, w
             # Assumption: last_timestamp is updated more frequent than
             # the 15bit trigger timestamp can overflow. The frame is occurring
             # every 4608 clock cycles (115.2 us).
-            trigger_timestamp = get_trigger_timestamp(word) | (last_m26_timestamps & 0xffff8000)
+            trigger_timestamp = get_trigger_timestamp(word) | (last_m26_timestamps[0] & 0xffff8000)
             # Check if trigger timestamp overflow (15bit) has occurred
             # and add the length of the trigger timstamp counter
-            if trigger_timestamp < last_m26_timestamps:
+            if trigger_timestamp < last_m26_timestamps[0]:
                 trigger_timestamp = trigger_timestamp + 2**15
             # Check for timestamp overflow (32bit) and calculate timestamp
             # difference between start of frame and trigger
-            if trigger_timestamp < last_m26_timestamps:
-                delta_timestamp = trigger_timestamp + (2**32 - last_m26_timestamps)
+            if trigger_timestamp < last_m26_timestamps[0]:
+                delta_timestamp = trigger_timestamp + (2**32 - last_m26_timestamps[0])
             else:
-                delta_timestamp = trigger_timestamp - last_m26_timestamps
+                delta_timestamp = trigger_timestamp - last_m26_timestamps[0]
             # Get actual frame number where trigger word occured:
             # This is last frame number (relative to where 31 bit trigger timestamp is calculated) + offset between last timestamp
             # and 31 bit trigger timestamp in units of full frame cycles.
-            frame_id[0] = last_frame_id + np.floor_divide(delta_timestamp, FRAME_UNIT_CYCLE)
+            last_trigger_frame_id = trigger_frame_id
+            trigger_frame_id = last_m26_frame_ids[0] + np.floor_divide(delta_timestamp, FRAME_UNIT_CYCLE)
             if hit_index >= hits.shape[0]:
                 hits_tmp = np.empty(shape=(max_hits_per_chunk,), dtype=hit_dtype)
                 hits = np.concatenate((hits, hits_tmp))
-            hits[hit_index]['frame'] = frame_id[0]  # Frame number of trigger timestamp (aligned to Mimosa26 frame)
+            hits[hit_index]['frame'] = trigger_frame_id  # Frame number of trigger timestamp (aligned to Mimosa26 frame)
             hits[hit_index]['plane'] = 255  # TLU data is indicated with this plane number
             hits[hit_index]['time_stamp'] = trigger_timestamp  # Timestamp of TLU word
             hits[hit_index]['trigger_number'] = trigger_number
@@ -369,7 +373,7 @@ def build_hits(raw_data, frame_id, last_frame_id, frame_length, m26_data_loss, w
             hit_index = hit_index + 1
         else:  # Raw data contains unknown word, neither M26 nor TLU word
             add_event_status(0, event_status, UNKNOWN_WORD)
-    return (hits[:hit_index], frame_id, last_frame_id, frame_length, m26_data_loss, word_index, n_words, row,
+    return (hits[:hit_index], m26_frame_ids, trigger_frame_id, last_m26_frame_ids, last_trigger_frame_id, frame_length, m26_data_loss, word_index, n_words, row,
             event_status, event_number, trigger_number, m26_timestamps, trigger_timestamp, last_m26_timestamps, last_trigger_timestamp)
 
 
@@ -383,14 +387,16 @@ class RawDataInterpreter(object):
 
     def reset(self):  # Reset variables
         # Per frame variables
-        self.frame_id = np.zeros(shape=(7, ), dtype=np.uint32)  # The counter value of the actual frame, 6 Mimosa planes + TLU
-        self.last_frame_id = self.frame_id[1]
+        self.m26_frame_ids = np.zeros(shape=(6, ), dtype=np.uint32)  # The counter value of the actual frame, 6 Mimosa planes + TLU
+        self.trigger_frame_id = 0
+        self.last_m26_frame_ids = np.zeros(shape=(6, ), dtype=np.uint32)
+        self.last_trigger_frame_id = 0
         self.frame_length = np.full(shape=(6, ), dtype=np.int32, fill_value=-1)  # The number of data words in the actual frame
         self.m26_data_loss = np.zeros((6, ), dtype=np.bool)  # Data loss array
         self.word_index = np.zeros(shape=(6, ), dtype=np.int32)  # The word index per device of the actual frame
         self.m26_timestamps = np.zeros(shape=(6, ), dtype=np.uint32)  # The timestamp for each plane (in units of 40 MHz), first index corresponds to TLU word timestamp, last 6 indices are timestamps of M26 frames
         self.trigger_timestamp = 0
-        self.last_m26_timestamps = self.m26_timestamps[0]
+        self.last_m26_timestamps = np.zeros(shape=(6, ), dtype=np.uint32)
         self.last_trigger_timestamp = 0
         self.n_words = np.zeros(shape=(6, ), dtype=np.uint32)  # The number of words containing column / row info
         self.row = np.full(shape=(6, ), dtype=np.int32, fill_value=-1)  # The actual readout row (rolling shutter)
@@ -403,8 +409,10 @@ class RawDataInterpreter(object):
 
     def interpret_raw_data(self, raw_data):
         chunk_result = build_hits(raw_data=raw_data,
-                                  frame_id=self.frame_id,
-                                  last_frame_id=self.last_frame_id,
+                                  m26_frame_ids=self.m26_frame_ids,
+                                  trigger_frame_id=self.trigger_frame_id,
+                                  last_m26_frame_ids=self.last_m26_frame_ids,
+                                  last_trigger_frame_id=self.last_trigger_frame_id,
                                   frame_length=self.frame_length,
                                   m26_data_loss=self.m26_data_loss,
                                   word_index=self.word_index,
@@ -422,8 +430,10 @@ class RawDataInterpreter(object):
 
         # Set updated buffer variables
         (hits,
-         self.frame_id,
-         self.last_frame_id,
+         self.m26_frame_ids,
+         self.trigger_frame_id,
+         self.last_m26_frame_ids,
+         self.last_trigger_frame_id,
          self.frame_length,
          self.m26_data_loss,
          self.word_index,
