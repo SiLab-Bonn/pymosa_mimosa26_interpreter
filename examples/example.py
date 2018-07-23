@@ -35,7 +35,7 @@ def analyze_raw_data(raw_data_file, time_reference_file, trigger_data_format):  
     with data_interpreter.DataInterpreter(raw_data_file=raw_data_file, time_reference_file=time_reference_file, trigger_data_format=trigger_data_format) as raw_data_analysis:
         raw_data_analysis.create_hit_table = True
         raw_data_analysis.interpret_word_table()  # interpret raw data
-        raw_data_analysis.interpret_hit_table()  # build events
+        # raw_data_analysis.interpret_hit_table()  # build events
 
 
 def process_dut(raw_data_file, time_reference_file, trigger_data_format, transpose=False, frame=False):

@@ -33,7 +33,7 @@ class TestInterpretation(unittest.TestCase):
         with data_interpreter.DataInterpreter(raw_data_file=input_file, time_reference_file=time_reference_file, trigger_data_format=2, create_pdf=False) as raw_data_analysis:
             raw_data_analysis.create_hit_table = True
             raw_data_analysis.interpret_word_table()
-            raw_data_analysis.interpret_hit_table()
+            # raw_data_analysis.interpret_hit_table()
 
         with tb.open_file(os.path.join(tests_data_folder, 'anemone_raw_data_interpreted_orig.h5'), 'r') as in_file_h5_orig:
             data_orig = in_file_h5_orig.root.Hits[:]

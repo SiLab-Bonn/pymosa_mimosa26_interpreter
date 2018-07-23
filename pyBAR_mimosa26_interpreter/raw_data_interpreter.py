@@ -23,39 +23,49 @@ import numpy as np
 
 
 FRAME_UNIT_CYCLE = 4608  # = 115.2 * 40, time for one frame in units of 40 MHz clock cylces
+ROW_UNIT_CYCLE = 8  # = 115.2 * 40 / 576, time to read one row in units of 40 MHz clock cycles
+LOWER_LIMIT = 48  # Correct for offset between M26 40 MHz clock and 40 MHz from R/O system. Offset determined by maximizing correlation between time reference and Mimosa26.
 
-hit_dtype = np.dtype([('plane', '<u1'), ('frame', '<u4'), ('time_stamp', '<u4'), ('trigger_number', '<u2'),
-                      ('column', '<u2'), ('row', '<u2'), ('event_status', '<u4')])
-tlu_dtype = np.dtype([('event_number', '<i8'), ('trigger_number', '<i4'), ('frame', '<u4')])
+hits_dtype = np.dtype([
+    ('plane', '<u1'),
+    ('event_number', '<i8'),
+    ('trigger_number', '<i8'),
+    ('trigger_time_stamp', '<i8'),
+    ('row_time_stamp', '<i8'),
+    ('frame_id', '<i8'),
+    ('column', '<u2'),
+    ('row', '<u2'),
+    ('event_status', '<u4')])
 
-# Event error codes
-# NO_ERROR = 0  # No error
-MULTIPLE_TRG_WORD = 0x00000001  # Event has more than one trigger word
-NO_TRG_WORD = 0x00000002  # Some hits of the event have no trigger word
-DATA_ERROR = 0x00000004  # Event has data word combinations that does not make sense (tailor at wrong position, not increasing frame counter ...)
-EVENT_INCOMPLETE = 0x00000008  # Data words are missing (e.g. tailor header)
-UNKNOWN_WORD = 0x00000010  # Event has unknown words
-UNEVEN_EVENT = 0x00000020  # Event has uneven amount of data words
-TRG_ERROR = 0x00000040  # A trigger error occurred
-TRUNC_EVENT = 0x00000080  # Event had too many hits and was truncated
-TRAILER_H_ERROR = 0x00000100  # trailer high error
-TRAILER_L_ERROR = 0x00000200  # trailer low error
-MIMOSA_OVERFLOW = 0x00000400  # mimosa overflow
-NO_HIT = 0x00000800  # events without any hit, useful for trigger number debugging
-COL_ERROR = 0x00001000  # column number error
-ROW_ERROR = 0x00002000  # row number error
-TRG_WORD = 0x00004000  # column number overflow
-TS_OVERFLOW = 0x00008000  # timestamp overflow
+telescope_data_dtype = np.dtype([
+    ('plane', '<u1'),
+    ('time_stamp', '<i8'),
+    ('frame_id', '<i8'),
+    ('column', '<u2'),
+    ('row', '<u2'),
+    ('frame_status', '<u4')])
+
+trigger_data_dtype = np.dtype([
+    ('event_number', '<i8'),
+    ('trigger_number', '<i8'),
+    ('trigger_time_stamp', '<i8'),
+    ('trigger_status', '<u4')])
+
+# Error codes
+TRIGGER_NUMBER_ERROR = 0x00000001  # Trigger number has not increased by one
+NO_TRIGGER_WORD_ERROR = 0x00000002  # Event has no trigger word associated
+TRIGGER_TIMESTAMP_OVERFLOW = 0x00000004  # Indicating the overflow of the trigger timestamp
+TRIGGER_NUMBER_OVERFLOW = 0x00000008  # Indicating the overflow of the trigger number
+DATA_ERROR = 0x00000100  # Indicating any occurrence of data errors in the Momosa26 protocol (e.g., invalid column/row, invalid data length, data loss)
+TIMESTAMP_OVERFLOW = 0x00000200  # Indicating the overflow of the Mimosa26 timestamp
+FRAME_ID_OVERFLOW = 0x00000400  # Indicating the overflow of the Mimosa26 frame ID
+OVERFLOW_FLAG = 0x00000800  # Indicating the occurrence of the overflow flag for a particular Mimosa26 row
 
 
+# Mimosa26 raw data
 @njit
 def is_mimosa_data(word):  # Check for Mimosa data word
     return (0xff000000 & word) == 0x20000000
-
-
-@njit
-def is_data_loss(word):  # Indicates data loss
-    return (0x00020000 & word) == 0x00020000
 
 
 @njit
@@ -63,59 +73,15 @@ def get_plane_number(word):  # There are 6 planes in the stream, starting from 1
     return (word >> 20) & 0xf
 
 
-@njit
-def get_frame_id_low(word):  # Get the frame id from the frame id low word
-    return 0x0000ffff & word
-
-
-@njit
-def get_frame_id_high(word):  # Get the frame id from the frame id high word
-    return (0x0000ffff & word) << 16
-
-
-@njit
-def is_frame_header0(word):  # Check if frame header0 word
-    return (0x0000ffff & word) == 0x00005555
-
-
-@njit
-def is_frame_header1(word, plane):  # Check if frame header1 word for the actual plane
-    return (0x0000ffff & word) == (0x00005550 | plane)
-
-
-@njit
-def is_frame_trailer0(word):  # Check if frame trailer0 word
-    return (0x0000ffff & word) == 0xaa50
-
-
-@njit
-def is_frame_trailer1(word, plane):  # Check if frame trailer1 word for the actual plane
-    return (0x0000ffff & word) == (0xaa50 | plane)
-
-
-@njit
-def get_frame_length(word):  # Get length of Mimosa26 frame
-    return (0x0000ffff & word) * 2
-
-
-@njit
-def get_n_hits(word):  # Returns the number of hits given by actual column word
-    return 0x00000003 & word
-
-
-@njit
-def get_column(word):  # Extract column from Mimosa26 hit word
-    return (word >> 2) & 0x7ff
-
-
-@njit
-def get_row(word):  # Extract row from Mimosa26 hit word
-    return (word >> 4) & 0x7ff
-
-
+# Frame header
 @njit
 def is_frame_header(word):  # Check if frame header high word (frame start flag is set by R/0)
     return (0x00010000 & word) == 0x00010000
+
+
+@njit
+def is_data_loss(word):  # Indicates data loss
+    return (0x00020000 & word) == 0x00020000
 
 
 @njit
@@ -129,8 +95,41 @@ def get_m26_timestamp_high(word):  # Timestamp of Mimosa26 data from frame heade
 
 
 @njit
+def is_frame_header0(word):  # Check if frame header0 word
+    return (0x0000ffff & word) == 0x00005555
+
+
+@njit
+def is_frame_header1(word, plane):  # Check if frame header1 word for the actual plane
+    return (0x0000ffff & word) == (0x00005550 | plane)
+
+
+# Frame counter
+@njit
+def get_frame_id_low(word):  # Get the frame id from the frame id low word
+    return 0x0000ffff & word
+
+
+@njit
+def get_frame_id_high(word):  # Get the frame id from the frame id high word
+    return (0x0000ffff & word) << 16
+
+
+# Data length
+@njit
+def get_frame_length(word):  # Get length of Mimosa26 frame
+    return (0x0000ffff & word)
+
+
+# Status / line word
+@njit
 def get_n_words(word):  # Return the number of data words for the actual row
     return 0x0000000f & word
+
+
+@njit
+def get_row(word):  # Extract row from Mimosa26 hit word
+    return (0x00007ff0 & word) >> 4
 
 
 @njit
@@ -138,6 +137,29 @@ def has_overflow(word):
     return (0x00008000 & word) != 0
 
 
+# State word
+@njit
+def get_n_hits(word):  # Returns the number of hits given by actual column word
+    return 0x00000003 & word
+
+
+@njit
+def get_column(word):  # Extract column from Mimosa26 hit word
+    return (0x00001ffc & word) >> 2
+
+
+# Frame trailer
+@njit
+def is_frame_trailer0(word):  # Check if frame trailer0 word
+    return (0x0000ffff & word) == 0xaa50
+
+
+@njit
+def is_frame_trailer1(word, plane):  # Check if frame trailer1 word for the actual plane
+    return (0x0000ffff & word) == (0xaa50 | plane)
+
+
+# Trigger words
 @njit
 def is_trigger_word(word):  # Check if TLU word (trigger)
     return (0x80000000 & word) == 0x80000000
@@ -156,14 +178,93 @@ def get_trigger_number(word, trigger_data_format):  # Get trigger number of TLU 
         return word & 0x7fffffff
 
 
-@njit
-def add_event_status(plane_id, event_status, status_code):
-    event_status[plane_id] |= status_code
+class RawDataInterpreter(object):
+    ''' Class to convert the raw data chunks to hits'''
+
+    def __init__(self):
+        self.reset()
+
+    def reset(self):  # Reset variables
+        # Temporary arrays
+        self.trigger_data = np.zeros(shape=0, dtype=trigger_data_dtype)
+        self.trigger_data_index = np.int64(-1)
+        self.telescope_data = np.zeros(shape=0, dtype=telescope_data_dtype)
+        self.telescope_data_index = np.int64(-1)
+
+        # Raw data interpreter
+        # Per frame variables
+        self.m26_frame_ids = np.zeros(shape=(6, ), dtype=np.int64)  # The Mimosa26 frame ID of the actual frame
+        self.m26_frame_length = np.zeros(shape=(6, ), dtype=np.uint32)  # The number of "useful" data words for the actual frame
+        self.m26_data_loss = np.ones((6, ), dtype=np.bool)  # The data loss status for the actual frame
+        self.m26_word_index = np.zeros(shape=(6, ), dtype=np.uint32)  # The word index per device of the actual frame
+        self.m26_timestamps = np.zeros(shape=(6, ), dtype=np.int64)  # The timestamp for each plane (in units of 40 MHz)
+        self.last_m26_timestamps = np.zeros(shape=(6, ), dtype=np.int64)
+        self.m26_n_words = np.zeros(shape=(6, ), dtype=np.uint32)  # The number of words containing column / row info
+        self.m26_rows = np.zeros(shape=(6, ), dtype=np.uint32)  # The actual readout row (rolling shutter)
+        self.m26_frame_status = np.zeros(shape=(6, ), dtype=np.uint32)  # The status flags for the actual frames
+        self.last_completed_m26_frame_ids = np.full(shape=6, dtype=np.int64, fill_value=-1)  # The status if the frame is complete for the actual frame
+        # Per event variables
+        self.event_number = np.int64(0)  # The event number of the actual trigger, event number starts at 1
+        self.trigger_number = np.int64(-1)  # The trigger number of the actual trigger
+        self.trigger_timestamp = np.int64(0)  # The trigger timestamp of the actual trigger
+
+        # Event builder
+        self.hits = np.zeros(shape=0, dtype=hits_dtype)
+        self.hits_index = np.int64(-1)
+        # Per event variables
+        self.finished_events = np.ones(shape=6, dtype=np.bool)
+
+        # Properties
+        self._add_missing_events = False
+
+    @property
+    def add_missing_events(self):
+        return self._add_missing_events
+
+    @add_missing_events.setter
+    def add_missing_events(self, value):
+        self._add_missing_events = bool(value)
+
+    def interpret_raw_data(self, raw_data):
+        # Analyze raw data
+        self.trigger_data, self.trigger_data_index, self.telescope_data, self.telescope_data_index, self.m26_frame_ids, self.m26_frame_length, self.m26_data_loss, self.m26_word_index, self.m26_timestamps, self.last_m26_timestamps, self.m26_n_words, self.m26_rows, self.m26_frame_status, self.last_completed_m26_frame_ids, self.event_number, self.trigger_number, self.trigger_timestamp = _interpret_raw_data(
+            raw_data=raw_data,
+            trigger_data=self.trigger_data,
+            trigger_data_index=self.trigger_data_index,
+            telescope_data=self.telescope_data,
+            telescope_data_index=self.telescope_data_index,
+            m26_frame_ids=self.m26_frame_ids,
+            m26_frame_length=self.m26_frame_length,
+            m26_data_loss=self.m26_data_loss,
+            m26_word_index=self.m26_word_index,
+            m26_timestamps=self.m26_timestamps,
+            last_m26_timestamps=self.last_m26_timestamps,
+            m26_n_words=self.m26_n_words,
+            m26_rows=self.m26_rows,
+            m26_frame_status=self.m26_frame_status,
+            last_completed_m26_frame_ids=self.last_completed_m26_frame_ids,
+            event_number=self.event_number,
+            trigger_number=self.trigger_number,
+            trigger_timestamp=self.trigger_timestamp,
+            add_missing_events=self.add_missing_events)
+        # Build events
+        self.trigger_data, self.trigger_data_index, self.telescope_data, self.telescope_data_index, self.hits, self.hits_index, self.finished_events = _build_events(
+            trigger_data=self.trigger_data,
+            trigger_data_index=self.trigger_data_index,
+            telescope_data=self.telescope_data,
+            telescope_data_index=self.telescope_data_index,
+            hits=self.hits,
+            hits_index=self.hits_index,
+            finished_events=self.finished_events)
+        # Create a copy of the hits array that is returned
+        hits = self.hits[:self.hits_index + 1].copy()
+        self.hits_index -= (self.hits_index + 1)
+
+        return hits
 
 
-@njit(locals={})
-def build_hits(raw_data, m26_frame_ids, trigger_frame_id, last_m26_frame_ids, last_trigger_frame_id, frame_length, m26_data_loss, word_index, n_words, row, event_status,
-               event_number, trigger_number, m26_timestamps, trigger_timestamp, last_m26_timestamps, last_trigger_timestamp, max_hits_per_chunk, trigger_data_format=2):
+@njit(locals={'trigger_data_index': numba.int64, 'telescope_data_index': numba.int64, 'trigger_status': numba.uint32, 'last_trigger_number': numba.int64, 'last_trigger_timestamp': numba.int64, 'n_missing_events': numba.uint32})
+def _interpret_raw_data(raw_data, trigger_data, trigger_data_index, telescope_data, telescope_data_index, m26_frame_ids, m26_frame_length, m26_data_loss, m26_word_index, m26_timestamps, last_m26_timestamps, m26_n_words, m26_rows, m26_frame_status, last_completed_m26_frame_ids, event_number, trigger_number, trigger_timestamp, add_missing_events):
     ''' Main interpretation function. Loops over the raw data and creates a hit array. Data errors are checked for.
     A lot of parameters are needed, since the variables have to be buffered for chunked analysis and given for
     each call of this function.
@@ -171,280 +272,267 @@ def build_hits(raw_data, m26_frame_ids, trigger_frame_id, last_m26_frame_ids, la
     Parameters:
     -----------
     raw_data : np.array
-        The array with the raw data words
-    m26_frame_ids : np.array, shape 6
-        The counter value of the actual frame for each plane, 0 if not set.
-    last_m26_frame_ids : np.array, shape 6
-        The counter value of the last frame for each plane.
-    frame_length : np.array, shape 6
-        The number of data words in the actual frame frame for each plane, 0 if not set
-    m26_data_loss : np.array, shape 6
-        The data loss status of each plane.
-    word_index : np.array, shape 6
-        The word index of the actual frame for each plane, 0 if not set
-    n_words : np.array, shape 6
-        The number of words containing column / row info for each plane, 0 if not set
-    row : np.array, shape 6
-        The actual readout row (rolling shutter) for each plane, 0 if not set
-    event_status : np.array
-        Actual event status for each plane
-    event_number : np.array, shape 6
-        The event counter set by the software counting full events for each plane
-    trigger_number : np.array
-        The trigger number of the actual event
-    m26_timestamps : np.array shape 6
-        Timestamp of Mimosa26 header.
-    trigger_timestamp : int
-        Timestamp of trigger.
-    last_m26_timestamps : np.array shape 6
-        Timestamp of last Mimosa26 header.
-    last_trigger_timestamp : np.array
-        Timestamp of last trigger.
-    max_hits_per_chunk : number
-        Maximum expected hits per chunk. Needed to allocate hit array.
-    trigger_data_format : integer
-        Number which indicates the used trigger data format.
-        0: TLU word is trigger number (not supported)
-        1: TLU word is timestamp (not supported)
-        2: TLU word is 15 bit timestamp + 16 bit trigger number
-        Only trigger data format 2 is supported, since the event building requires a trigger timestamp in order to work reliably.
-
-    Returns
-    -------
-    A list of all input parameters.
+        The array with the raw data words.
     '''
-    # The raw data order of the Mimosa 26 data should be always START / FRAMEs ID / FRAME LENGTH / DATA
-    # Since the clock is the same for each plane; the order is START plane 1, START plane 2, ...
+    # print "******************************************", raw_data, raw_data.shape
+    # increase buffer size
+    # print trigger_data, trigger_data.shape[0] + raw_data.shape[0]
+    # print telescope_data, telescope_data.shape[0] + raw_data.shape[0]
+    # print "resize..."
 
-    hits = np.empty(shape=(max_hits_per_chunk,), dtype=hit_dtype)  # Result hits array
-    hit_index = 0  # Pointer to actual hit in resul hit arrray; needed to append hits every event
-    # Initialize last trigger number
-    if trigger_number <= 0:
-        last_trigger_number = -1
-    else:
-        last_trigger_number = trigger_number - 1
-    # Loop over raw data words
-    for raw_i in range(raw_data.shape[0]):
-        word = raw_data[raw_i]  # Actual raw data word
-        if is_mimosa_data(word):  # Check if word is from Mimosa26. Other words can come from TLU.
+    # print "resized"
+
+    # Loop over the raw data words
+    for raw_data_word in raw_data:
+        # print raw_data_word
+        if is_mimosa_data(raw_data_word):  # Check if word is from Mimosa26.
             # Check to which plane the data belongs
-            plane_id = get_plane_number(word) - 1  # The actual_plane if the actual word belongs to (0 to 5)
-            # Interpret the word of the actual plane
-            if is_data_loss(word):
-                # Reset word index
+            plane_id = get_plane_number(raw_data_word) - 1  # The actual_plane if the actual word belongs to (0 to 5)
+            # print 'plane_id', plane_id
+            # In the following, interpretation of the raw data words of the actual plane
+            # Check for data loss bit set by the M26 RX FSM
+            if is_data_loss(raw_data_word):
+                # Setting the data loss flag to true.
+                # The data loss bit is set by the M26 RX FSM.
+                # The bit is set only once after each data loss, i.e.,
+                # the first data word after the lost data words.
                 m26_data_loss[plane_id] = True
-            elif is_frame_header(word):  # New event for actual plane; events are aligned at this header
-                last_m26_timestamps[plane_id] = m26_timestamps[plane_id]  # Timestamp of last Mimosa26 frame
-                last_m26_frame_ids[plane_id] = m26_frame_ids[plane_id]  # Last Mimosa26 frame number
-                # Get Mimosa26 timestamp from header low word
-                m26_timestamps[plane_id] = get_m26_timestamp_low(word) | (m26_timestamps[plane_id] & 0xffff0000)
-                word_index[plane_id] = 0
+            if is_frame_header(raw_data_word):  # New frame for actual plane, M26 timestamp (LSB), frame header0
+                # print "is header", plane_id
+                # Get Mimosa26 timestamp from raw data word (LSB)
+                last_m26_timestamps[plane_id] = m26_timestamps[plane_id]
+                m26_timestamps[plane_id] = (m26_timestamps[plane_id] & 0x7fffffffffff0000) | get_m26_timestamp_low(raw_data_word)
+                m26_word_index[plane_id] = 0
                 # Reset parameters after header
-                frame_length[plane_id] = -1
-                n_words[plane_id] = 0
+                m26_frame_length[plane_id] = 0
+                m26_n_words[plane_id] = 0
+                # Set the status bits for priviously incomplete frames
+                index = telescope_data_index
+                while index >= 0:
+                    if telescope_data[index]['plane'] == plane_id:
+                        if telescope_data[index]['frame_id'] > last_completed_m26_frame_ids[plane_id]:
+                            telescope_data[index]['frame_status'] |= DATA_ERROR
+                        else:
+                            break
+                    index -= 1
                 m26_data_loss[plane_id] = False
+                m26_frame_status[plane_id] = 0
             elif m26_data_loss[plane_id] is True:  # Trash data
-                # TODO: add event status trash data
+                # Nothing to do, do not trust data
                 continue
-            else:  # Correct M26 data
-                word_index[plane_id] += 1
-                if word_index[plane_id] == 1:  # After header low word header high word comes
+            else:  # Interpreting M26 raw data
+                m26_word_index[plane_id] += 1
+                if m26_word_index[plane_id] == 1:  # Mimosa26 timestamp, M26 timestamp (MSB), frame header1
                     # Check for 32bit timestamp overflow
-                    if get_m26_timestamp_high(word) < (m26_timestamps[plane_id] & 0xffff0000):  # Timestamp has overflow
-                        add_event_status(plane_id + 1, event_status, TS_OVERFLOW)
-
-                    # Get Mimosa26 timestamp from header low word
-                    m26_timestamps[plane_id] = get_m26_timestamp_high(word) | m26_timestamps[plane_id] & 0x0000ffff
-
-                elif word_index[plane_id] == 2:  # Next word should be the frame ID low word
-                    m26_frame_ids[plane_id] = get_frame_id_low(word) | (m26_frame_ids[plane_id] & 0xffff0000)
-
-                elif word_index[plane_id] == 3:  # Next word should be the frame ID high word
-                    m26_frame_ids[plane_id] = get_frame_id_high(word) | (m26_frame_ids[plane_id] & 0x0000ffff)
-                    if last_m26_frame_ids[plane_id] + 1 != m26_frame_ids[plane_id] and m26_frame_ids[plane_id] != 0 and last_m26_frame_ids[plane_id] != 0:
-                        # TODO: add event status trash data
+                    if m26_timestamps[plane_id] >= 0 and get_m26_timestamp_high(raw_data_word) < (m26_timestamps[plane_id] & 0x00000000ffff0000):
+                        m26_frame_status[plane_id] |= TIMESTAMP_OVERFLOW
+                        m26_timestamps[plane_id] = np.int64(2**32) + m26_timestamps[plane_id]
+                    # Get Mimosa26 timestamp from raw data word (MSB)
+                    m26_timestamps[plane_id] = get_m26_timestamp_high(raw_data_word) | (m26_timestamps[plane_id] & 0x7fffffff0000ffff)
+                elif m26_word_index[plane_id] == 2:  # Mimosa26 frame ID
+                    # Get Mimosa26 frame ID from raw data word (LSB)
+                    m26_frame_ids[plane_id] = (m26_frame_ids[plane_id] & 0x7fffffffffff0000) | get_frame_id_low(raw_data_word)
+                elif m26_word_index[plane_id] == 3:  # Mimosa26 frame ID
+                    # Check for 32bit frame ID overflow
+                    if m26_frame_ids[plane_id] >= 0 and get_frame_id_high(raw_data_word) < (m26_frame_ids[plane_id] & 0x00000000ffff0000):
+                        m26_frame_status[plane_id] |= FRAME_ID_OVERFLOW
+                        m26_frame_ids[plane_id] = np.int64(2**32) + m26_frame_ids[plane_id]
+                    # Get Mimosa26 frame ID from raw data word (MSB)
+                    m26_frame_ids[plane_id] = get_frame_id_high(raw_data_word) | (m26_frame_ids[plane_id] & 0x7fffffff0000ffff)
+                elif m26_word_index[plane_id] == 4:  # Mimosa26 frame length
+                    m26_frame_length[plane_id] = get_frame_length(raw_data_word)
+                    if m26_frame_length[plane_id] > 570:  # Defined in the Mimosa26 protocol, no more than 570 "useful" data words
                         m26_data_loss[plane_id] = True
                         continue
-
-                elif word_index[plane_id] == 4:  # Next word should be the frame length high word
-                    frame_length[plane_id] = get_frame_length(word)
-
-                elif word_index[plane_id] == 5:  # Next word should be the frame length low word (=high word, one data line, the number of words is repeated 2 times)
-                    if frame_length[plane_id] != get_frame_length(word):
-                        add_event_status(plane_id + 1, event_status, EVENT_INCOMPLETE)
-
-                elif word_index[plane_id] == 5 + frame_length[plane_id] + 1:  # Next word should be the frame trailer high word
-                    if not is_frame_trailer0(word):
-                        add_event_status(plane_id + 1, event_status, TRAILER_H_ERROR)
-
-                elif word_index[plane_id] == 5 + frame_length[plane_id] + 2:  # Last word should be the frame trailer low word
-                    if not is_frame_trailer1(word, plane=plane_id + 1):
-                        add_event_status(plane_id + 1, event_status, TRAILER_L_ERROR)
-
-                elif word_index[plane_id] > 5 + frame_length[plane_id] + 2:  # Too many data words
-                    # TODO: add event status trash data
+                elif m26_word_index[plane_id] == 5:  # Mimosa26 frame length, a second time
+                    if m26_frame_length[plane_id] != get_frame_length(raw_data_word):  # DO0 & DO1 should always have the same data length
+                        m26_data_loss[plane_id] = True
+                        continue
+                    else:
+                        m26_frame_length[plane_id] += get_frame_length(raw_data_word)
+                elif m26_word_index[plane_id] == 5 + m26_frame_length[plane_id] + 1:  # Frame trailer0
+                    if not is_frame_trailer0(raw_data_word):
+                        m26_data_loss[plane_id] = True
+                        continue
+                elif m26_word_index[plane_id] == 5 + m26_frame_length[plane_id] + 2:  # Frame trailer1
+                    if not is_frame_trailer1(raw_data_word, plane=plane_id + 1):
+                        m26_data_loss[plane_id] = True
+                        continue
+                    else:
+                        last_completed_m26_frame_ids[plane_id] = m26_frame_ids[plane_id]
+                elif m26_word_index[plane_id] > 5 + m26_frame_length[plane_id] + 2:  # Ignore any occurrence of additional raw data words
                     m26_data_loss[plane_id] = True
                     continue
-
                 else:  # Column / Row words (actual data word with hits)
-                    if n_words[plane_id] == 0:  # First word contains the row info and the number of data words for this row
-                        if word_index[plane_id] == 5 + frame_length[plane_id]:  # Always even amount of words or this fill word is used
-                            add_event_status(plane_id + 1, event_status, UNEVEN_EVENT)
+                    if m26_n_words[plane_id] == 0:  # First word contains the row info and the number of data words for this row
+                        if m26_word_index[plane_id] == 5 + m26_frame_length[plane_id]:  # Always even amount of words or this fill word is used
+                            # Ignore this fill word
+                            continue
                         else:
-                            n_words[plane_id] = get_n_words(word)
-                            row[plane_id] = get_row(word)  # Get row from data word
-                        if has_overflow(word):
-                            add_event_status(plane_id + 1, event_status, MIMOSA_OVERFLOW)
-                            n_words[plane_id] = 0
-                        if row[plane_id] > 576:  # Row overflow
-                            add_event_status(plane_id + 1, event_status, ROW_ERROR)
+                            m26_n_words[plane_id] = get_n_words(raw_data_word)
+                            m26_rows[plane_id] = get_row(raw_data_word)  # Get row from data word
+                            if m26_rows[plane_id] >= 576:  # Row overflow
+                                m26_data_loss[plane_id] = True
+                                continue
+                        if has_overflow(raw_data_word):
+                            m26_frame_status[plane_id] |= OVERFLOW_FLAG  # set overflow bit
+                        else:
+                            m26_frame_status[plane_id] & ~OVERFLOW_FLAG  # unset overflow bit
                     else:
-                        n_words[plane_id] = n_words[plane_id] - 1  # Count down the words
-                        n_hits = get_n_hits(word)
-                        column = get_column(word)  # Get column from data word
+                        m26_n_words[plane_id] = m26_n_words[plane_id] - 1  # Count down the words
+                        n_hits = get_n_hits(raw_data_word)
+                        column = get_column(raw_data_word)  # Get column from data word
                         if column >= 1152:  # Column overflow
-                            add_event_status(plane_id + 1, event_status, COL_ERROR)
+                            m26_data_loss[plane_id] = True
+                            continue
                         for k in range(n_hits + 1):
-                            if hit_index >= hits.shape[0]:
-                                hits_tmp = np.empty(shape=(max_hits_per_chunk,), dtype=hit_dtype)
-                                hits = np.concatenate((hits, hits_tmp))
+                            if column + k >= 1152:
+                                m26_data_loss[plane_id] = True
+                                break
+                            # Increase index
+                            telescope_data_index += 1
+                            # extend telescope data array if neccessary
+                            if telescope_data_index >= telescope_data.shape[0]:
+                                telescope_data_tmp = np.zeros(shape=max(1, int(raw_data.shape[0] / 2)), dtype=telescope_data_dtype)
+                                telescope_data = np.concatenate((telescope_data, telescope_data_tmp))
                             # Store hits
-                            hits[hit_index]['frame'] = m26_frame_ids[plane_id]
-                            hits[hit_index]['plane'] = plane_id + 1
-                            hits[hit_index]['time_stamp'] = m26_timestamps[plane_id]
-                            if trigger_number < 0:  # not yet initialized
-                                hits[hit_index]['trigger_number'] = 0
-                            else:
-                                hits[hit_index]['trigger_number'] = trigger_number
-                            hits[hit_index]['column'] = column + k
-                            hits[hit_index]['row'] = row[plane_id]
-                            hits[hit_index]['event_status'] = event_status[plane_id + 1]
-                            hit_index = hit_index + 1
-
-                        # Reset event status
-                        for i in range(1, 7):
-                            event_status[i] = 0
-        elif is_trigger_word(word):  # Raw data word is TLU word
-            # Reset event status
-            event_status[0] = 0
-            # Trigger word
-            add_event_status(0, event_status, TRG_WORD)
-            trigger_number_tmp = get_trigger_number(word, trigger_data_format)
-            # Check for valid trigger number
-            # Trigger number has to increase by 1
-            if last_trigger_number >= 0 and trigger_number >= 0:
-                # Check if trigger number has increased by 1
-                # and exclude overflow case
-                if last_trigger_number + 1 != trigger_number_tmp and trigger_number_tmp > 0:
-                    add_event_status(0, event_status, TRG_ERROR)
-            last_trigger_number = trigger_number
-            trigger_number = trigger_number_tmp
-            # Calculating 31bit timestamp from 15bit trigger timestamp
-            # and use last_timestamp (frame header timestamp) for that.
-            # Assumption: last_timestamp is updated more frequent than
+                            telescope_data[telescope_data_index]['plane'] = plane_id
+                            telescope_data[telescope_data_index]['time_stamp'] = m26_timestamps[plane_id]
+                            telescope_data[telescope_data_index]['frame_id'] = m26_frame_ids[plane_id]
+                            telescope_data[telescope_data_index]['column'] = column + k
+                            telescope_data[telescope_data_index]['row'] = m26_rows[plane_id]
+                            telescope_data[telescope_data_index]['frame_status'] = m26_frame_status[plane_id]
+        elif is_trigger_word(raw_data_word):  # Raw data word is TLU/trigger word
+            # Reset trigger status
+            trigger_status = 0
+            # Get latest telescope timestamp and set trigger timestamp
+            last_trigger_timestamp = trigger_timestamp
+            # Get largest M26 timestamp
+            for actual_plane_id in range(6):
+                if last_m26_timestamps[actual_plane_id] > trigger_timestamp:
+                    trigger_timestamp = last_m26_timestamps[actual_plane_id]
+            # Calculating 63bit timestamp from 15bit trigger timestamp
+            # and last telescope timestamp (frame header timestamp).
+            # Assumption: the telescope timestamp is updated more frequent than
             # the 15bit trigger timestamp can overflow. The frame is occurring
             # every 4608 clock cycles (115.2 us).
-            trigger_timestamp = get_trigger_timestamp(word) | (last_m26_timestamps[0] & 0xffff8000)
-            # Check if trigger timestamp overflow (15bit) has occurred
-            # and add the length of the trigger timstamp counter
-            if trigger_timestamp < last_m26_timestamps[0]:
-                trigger_timestamp = trigger_timestamp + 2**15
-            # Check for timestamp overflow (32bit) and calculate timestamp
-            # difference between start of frame and trigger
-            if trigger_timestamp < last_m26_timestamps[0]:
-                delta_timestamp = trigger_timestamp + (2**32 - last_m26_timestamps[0])
+            # Get trigger timestamp from raw data word
+            trigger_timestamp = (0x7fffffffffff8000 & trigger_timestamp) | get_trigger_timestamp(raw_data_word)
+            # Check for 15bit trigger timestamp overflow
+            if last_trigger_timestamp >= 0 and trigger_timestamp <= last_trigger_timestamp:
+                trigger_status |= TRIGGER_TIMESTAMP_OVERFLOW
+                trigger_timestamp = np.int64(2**15) + trigger_timestamp
+            # Copy of trigger number
+            last_trigger_number = trigger_number
+            # Check for 16bit trigger number overflow
+            if trigger_number >= 0 and get_trigger_number(raw_data_word, trigger_data_format=2) <= (trigger_number & 0x000000000000ffff):
+                trigger_status |= TRIGGER_NUMBER_OVERFLOW
+                trigger_number = np.int64(2**16) + trigger_number
+            # Get trigger number from raw data word
+            if trigger_number < 0:
+                trigger_number = get_trigger_number(raw_data_word, trigger_data_format=2)
             else:
-                delta_timestamp = trigger_timestamp - last_m26_timestamps[0]
-            # Get actual frame number where trigger word occured:
-            # This is last frame number (relative to where 31 bit trigger timestamp is calculated) + offset between last timestamp
-            # and 31 bit trigger timestamp in units of full frame cycles.
-            last_trigger_frame_id = trigger_frame_id
-            trigger_frame_id = last_m26_frame_ids[0] + np.floor_divide(delta_timestamp, FRAME_UNIT_CYCLE)
-            if hit_index >= hits.shape[0]:
-                hits_tmp = np.empty(shape=(max_hits_per_chunk,), dtype=hit_dtype)
-                hits = np.concatenate((hits, hits_tmp))
-            hits[hit_index]['frame'] = trigger_frame_id  # Frame number of trigger timestamp (aligned to Mimosa26 frame)
-            hits[hit_index]['plane'] = 255  # TLU data is indicated with this plane number
-            hits[hit_index]['time_stamp'] = trigger_timestamp  # Timestamp of TLU word
-            hits[hit_index]['trigger_number'] = trigger_number
-            hits[hit_index]['column'] = 0
-            hits[hit_index]['row'] = delta_timestamp % FRAME_UNIT_CYCLE  # Distance between trigger timestamp to timestamp of last Mimosa26 frame
-            hits[hit_index]['event_status'] = event_status[0]  # event status of TLU
-            hit_index = hit_index + 1
+                trigger_number = (0x7fffffffffff0000 & trigger_number) | get_trigger_number(raw_data_word, trigger_data_format=2)
+            # Check validity of trigger number
+            # Trigger number has to increase by 1
+            if trigger_data_index >= 0:
+                # Check if trigger number has increased by 1
+                if last_trigger_number < 0:
+                    n_missing_events = 0
+                else:
+                    n_missing_events = trigger_number - (last_trigger_number + 1)
+                if n_missing_events != 0:
+                    if n_missing_events > 0 and add_missing_events:
+                        for i in range(n_missing_events):
+                            # Increase index
+                            trigger_data_index += 1
+                            # extend trigger data array if neccessary
+                            if trigger_data_index >= trigger_data.shape[0]:
+                                trigger_data_tmp = np.zeros(shape=max(1, int(raw_data.shape[0] / 6)), dtype=trigger_data_dtype)
+                                trigger_data = np.concatenate((trigger_data, trigger_data_tmp))
+                            # Increase event number
+                            event_number += 1
+                            # Store trigger data
+                            trigger_data[trigger_data_index]['event_number'] = event_number  # Timestamp of TLU word
+                            trigger_data[trigger_data_index]['trigger_time_stamp'] = -1  # Timestamp of TLU word
+                            trigger_data[trigger_data_index]['trigger_number'] = trigger_data[trigger_data_index - 1]['trigger_number'] + 1 + i
+                            trigger_data[trigger_data_index]['trigger_status'] = NO_TRIGGER_WORD_ERROR  # Trigger status
+                    else:
+                        trigger_status |= TRIGGER_NUMBER_ERROR
+            # Increase index
+            trigger_data_index += 1
+            # extend trigger data array if neccessary
+            if trigger_data_index >= trigger_data.shape[0]:
+                trigger_data_tmp = np.zeros(shape=max(1, int(raw_data.shape[0] / 6)), dtype=trigger_data_dtype)
+                trigger_data = np.concatenate((trigger_data, trigger_data_tmp))
+            # Increase event number
+            event_number += 1
+            # Store trigger data
+            trigger_data[trigger_data_index]['event_number'] = event_number  # Timestamp of TLU word
+            trigger_data[trigger_data_index]['trigger_number'] = trigger_number
+            trigger_data[trigger_data_index]['trigger_time_stamp'] = trigger_timestamp  # Timestamp of TLU word
+            trigger_data[trigger_data_index]['trigger_status'] = trigger_status  # Trigger status
         else:  # Raw data contains unknown word, neither M26 nor TLU word
-            add_event_status(0, event_status, UNKNOWN_WORD)
-    return (hits[:hit_index], m26_frame_ids, trigger_frame_id, last_m26_frame_ids, last_trigger_frame_id, frame_length, m26_data_loss, word_index, n_words, row,
-            event_status, event_number, trigger_number, m26_timestamps, trigger_timestamp, last_m26_timestamps, last_trigger_timestamp)
+            for actual_plane_id in range(6):
+                m26_data_loss[actual_plane_id] = True
+
+    return trigger_data, trigger_data_index, telescope_data, telescope_data_index, m26_frame_ids, m26_frame_length, m26_data_loss, m26_word_index, m26_timestamps, last_m26_timestamps, m26_n_words, m26_rows, m26_frame_status, last_completed_m26_frame_ids, event_number, trigger_number, trigger_timestamp
 
 
-class RawDataInterpreter(object):
-    ''' Class to convert the raw data chunks to hits'''
+@njit(locals={'hits_index': numba.int64, 'curr_trigger_data_index': numba.int64, 'curr_telescope_data_index': numba.int64})
+def _build_events(trigger_data, trigger_data_index, telescope_data, telescope_data_index, hits, hits_index, finished_events):
+    # latest timestamp
+    latest_trigger_data_indices = np.full(shape=6, dtype=np.int64, fill_value=-1)
+    finished_telescope_data_indices = np.full(shape=6, dtype=np.int64, fill_value=-1)
 
-    def __init__(self, max_hits_per_chunk=500000, trigger_data_format=2):
-        self.max_hits_per_chunk = max_hits_per_chunk
-        self.trigger_data_format = trigger_data_format
-        self.reset()
+    curr_trigger_data_index = 0
+    # adding hits
+    while curr_trigger_data_index <= trigger_data_index and np.all(finished_events) or (curr_trigger_data_index == 0 and trigger_data_index >= 0):
+        trigger_event_number = trigger_data[curr_trigger_data_index]['event_number']
+        trigger_number = trigger_data[curr_trigger_data_index]['trigger_number']
+        trigger_timestamp = trigger_data[curr_trigger_data_index]['trigger_time_stamp']
+        trigger_status = trigger_data[curr_trigger_data_index]['trigger_status']
 
-    def reset(self):  # Reset variables
-        # Per frame variables
-        self.m26_frame_ids = np.zeros(shape=(6, ), dtype=np.uint32)  # The counter value of the actual frame, 6 Mimosa planes + TLU
-        self.trigger_frame_id = 0
-        self.last_m26_frame_ids = np.zeros(shape=(6, ), dtype=np.uint32)
-        self.last_trigger_frame_id = 0
-        self.frame_length = np.full(shape=(6, ), dtype=np.int32, fill_value=-1)  # The number of data words in the actual frame
-        self.m26_data_loss = np.zeros((6, ), dtype=np.bool)  # Data loss array
-        self.word_index = np.zeros(shape=(6, ), dtype=np.int32)  # The word index per device of the actual frame
-        self.m26_timestamps = np.zeros(shape=(6, ), dtype=np.uint32)  # The timestamp for each plane (in units of 40 MHz), first index corresponds to TLU word timestamp, last 6 indices are timestamps of M26 frames
-        self.trigger_timestamp = 0
-        self.last_m26_timestamps = np.zeros(shape=(6, ), dtype=np.uint32)
-        self.last_trigger_timestamp = 0
-        self.n_words = np.zeros(shape=(6, ), dtype=np.uint32)  # The number of words containing column / row info
-        self.row = np.full(shape=(6, ), dtype=np.int32, fill_value=-1)  # The actual readout row (rolling shutter)
+        curr_telescope_data_index = np.min(finished_telescope_data_indices) + 1
 
-        # Per event variables
-        self.tlu_word_index = np.zeros(shape=(6, ), dtype=np.uint32)  # TLU buffer index for each plane; needed to append hits
-        self.event_status = np.zeros(shape=(7, ), dtype=np.uint32)  # Actual event status for each plane, TLU and 6 Mimosa planes
-        self.event_number = np.full(shape=(6, ), dtype=np.int64, fill_value=-1)  # The event counter set by the software counting full events for each plane
-        self.trigger_number = -1  # The trigger number of the actual event
+        if np.all(finished_events):
+            for current_index in range(6):
+                finished_events[current_index] = False
+        while curr_telescope_data_index <= telescope_data_index:
+            if not finished_events[telescope_data[curr_telescope_data_index]['plane']]:
+                hit_timestamp_start = telescope_data[curr_telescope_data_index]['time_stamp'] + telescope_data[curr_telescope_data_index]['row'] * ROW_UNIT_CYCLE - 2 * FRAME_UNIT_CYCLE - LOWER_LIMIT
+                hit_timestamp_stop = hit_timestamp_start + FRAME_UNIT_CYCLE + ROW_UNIT_CYCLE
+                if hit_timestamp_start <= trigger_timestamp and trigger_timestamp < hit_timestamp_stop:
+                    hits_index += 1
+                    # extend hits array if neccessary
+                    if hits_index >= hits.shape[0]:
+                        hits_tmp = np.zeros(shape=telescope_data.shape[0], dtype=hits_dtype)
+                        hits = np.concatenate((hits, hits_tmp))
+                    # Adding hits to event
+                    hits[hits_index]['plane'] = telescope_data[curr_telescope_data_index]['plane']
+                    hits[hits_index]['event_number'] = trigger_event_number
+                    hits[hits_index]['trigger_number'] = trigger_number
+                    hits[hits_index]['trigger_time_stamp'] = trigger_timestamp
+                    hits[hits_index]['row_time_stamp'] = hit_timestamp_start
+                    hits[hits_index]['frame_id'] = telescope_data[curr_telescope_data_index]['frame_id']
+                    hits[hits_index]['column'] = telescope_data[curr_telescope_data_index]['column']
+                    hits[hits_index]['row'] = telescope_data[curr_telescope_data_index]['row']
+                    hits[hits_index]['event_status'] = telescope_data[curr_telescope_data_index]['frame_status'] | trigger_status
+                elif hit_timestamp_start > trigger_timestamp:
+                    latest_trigger_data_indices[telescope_data[curr_telescope_data_index]['plane']] = curr_trigger_data_index
+                    finished_events[telescope_data[curr_telescope_data_index]['plane']] = True
+                    if np.all(finished_events):
+                        break
+                else:  # trigger_timestamp >= hit_timestamp_stop
+                    finished_telescope_data_indices[telescope_data[curr_telescope_data_index]['plane']] = curr_telescope_data_index
+            curr_telescope_data_index += 1
+        curr_trigger_data_index += 1
 
-    def interpret_raw_data(self, raw_data):
-        chunk_result = build_hits(raw_data=raw_data,
-                                  m26_frame_ids=self.m26_frame_ids,
-                                  trigger_frame_id=self.trigger_frame_id,
-                                  last_m26_frame_ids=self.last_m26_frame_ids,
-                                  last_trigger_frame_id=self.last_trigger_frame_id,
-                                  frame_length=self.frame_length,
-                                  m26_data_loss=self.m26_data_loss,
-                                  word_index=self.word_index,
-                                  n_words=self.n_words,
-                                  row=self.row,
-                                  event_status=self.event_status,
-                                  event_number=self.event_number,
-                                  trigger_number=self.trigger_number,
-                                  m26_timestamps=self.m26_timestamps,
-                                  trigger_timestamp=self.trigger_timestamp,
-                                  last_m26_timestamps=self.last_m26_timestamps,
-                                  last_trigger_timestamp=self.last_trigger_timestamp,
-                                  max_hits_per_chunk=self.max_hits_per_chunk,
-                                  trigger_data_format=self.trigger_data_format)
+    telescope_data_start_index = np.min(finished_telescope_data_indices) + 1
+    telescope_data = telescope_data[telescope_data_start_index:]
+    telescope_data_index -= telescope_data_start_index
+    trigger_data_start_index = np.min(latest_trigger_data_indices) + 1
+    trigger_data = trigger_data[trigger_data_start_index:]
+    trigger_data_index -= trigger_data_start_index
 
-        # Set updated buffer variables
-        (hits,
-         self.m26_frame_ids,
-         self.trigger_frame_id,
-         self.last_m26_frame_ids,
-         self.last_trigger_frame_id,
-         self.frame_length,
-         self.m26_data_loss,
-         self.word_index,
-         self.n_words,
-         self.row,
-         self.event_status,
-         self.event_number,
-         self.trigger_number,
-         self.m26_timestamps,
-         self.trigger_timestamp,
-         self.last_m26_timestamps,
-         self.last_trigger_timestamp) = chunk_result
-
-        return hits
+    return trigger_data, trigger_data_index, telescope_data, telescope_data_index, hits, hits_index, finished_events

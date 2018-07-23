@@ -123,7 +123,6 @@ def plot_event_status(hist, title=None, filename=None):
     _plot_1d_hist(hist=hist,
                   title=title,
                   log_y=True,
-                  plot_range=range(0, 16),
-                  x_ticks=('MULT\nTRG WRD', 'NO\nTRG', 'DATA\nERR', 'EVENT\nINCMP', 'UNKNOWN\nWRD', 'UNEVEN\nEVENT', 'TRG\nERR',
-                           'TRUNC\nEVENT', 'TAILH\nERR', 'TAILL\nERR', 'M26\nOVF', 'NO\nHIT', 'COL\nERR', 'ROW\nERR', 'TRG\nWRD', 'TS\nOVF'),
+                  plot_range=range(8),
+                  x_ticks=('Trigger\nerror', 'No\ntrigger\nword', 'Trigger\ntimestamp\nOVF', 'Trigger\nnumber\nOVF', 'M26\ndata\nerror', 'M26\ntimestamp\nOVF', 'M26\nframe ID\nOVF', 'M26\nrow OVF\nflag'),
                   color='g', y_axis_title='Number of events', filename=filename)
