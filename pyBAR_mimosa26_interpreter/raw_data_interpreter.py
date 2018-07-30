@@ -24,7 +24,7 @@ import numpy as np
 
 FRAME_UNIT_CYCLE = 4608  # = 115.2 * 40, time for one frame in units of 40 MHz clock cylces
 ROW_UNIT_CYCLE = 8  # = 115.2 * 40 / 576, time to read one row in units of 40 MHz clock cycles
-LOWER_LIMIT = 48  # Correct for offset between M26 40 MHz clock and 40 MHz from R/O system. Offset determined by maximizing correlation between time reference and Mimosa26.
+LOWER_LIMIT = 48  # Correct for offset between M26 40 MHz clock and 40 MHz from R/O system. Offset determined by maximum correlation between the time reference and Mimosa26 telescope.
 
 hits_dtype = np.dtype([
     ('plane', '<u1'),
@@ -265,23 +265,15 @@ class RawDataInterpreter(object):
 
 @njit(locals={'trigger_data_index': numba.int64, 'telescope_data_index': numba.int64, 'trigger_status': numba.uint32, 'last_trigger_number': numba.int64, 'last_trigger_timestamp': numba.int64, 'n_missing_events': numba.uint32})
 def _interpret_raw_data(raw_data, trigger_data, trigger_data_index, telescope_data, telescope_data_index, m26_frame_ids, m26_frame_length, m26_data_loss, m26_word_index, m26_timestamps, last_m26_timestamps, m26_n_words, m26_rows, m26_frame_status, last_completed_m26_frame_ids, event_number, trigger_number, trigger_timestamp, add_missing_events):
-    ''' Main interpretation function. Loops over the raw data and creates a hit array. Data errors are checked for.
-    A lot of parameters are needed, since the variables have to be buffered for chunked analysis and given for
-    each call of this function.
+    ''' This function is interpreting the Mimosa26 telescope raw data and creates temporary trigger and telescope data arrays.
+    The interpreter checks for trigger and Mimosa26 data errors.
 
     Parameters:
     -----------
     raw_data : np.array
         The array with the raw data words.
+    TBD
     '''
-    # print "******************************************", raw_data, raw_data.shape
-    # increase buffer size
-    # print trigger_data, trigger_data.shape[0] + raw_data.shape[0]
-    # print telescope_data, telescope_data.shape[0] + raw_data.shape[0]
-    # print "resize..."
-
-    # print "resized"
-
     # Loop over the raw data words
     for raw_data_word in raw_data:
         # print raw_data_word
@@ -481,6 +473,12 @@ def _interpret_raw_data(raw_data, trigger_data, trigger_data_index, telescope_da
 
 @njit(locals={'hits_index': numba.int64, 'curr_trigger_data_index': numba.int64, 'curr_telescope_data_index': numba.int64})
 def _build_events(trigger_data, trigger_data_index, telescope_data, telescope_data_index, hits, hits_index, finished_events):
+    ''' This function is builds events from the temporary trigger and telescope data arrays.
+
+    Parameters:
+    -----------
+    TBD
+    '''
     # latest timestamp
     latest_trigger_data_indices = np.full(shape=6, dtype=np.int64, fill_value=-1)
     finished_telescope_data_indices = np.full(shape=6, dtype=np.int64, fill_value=-1)

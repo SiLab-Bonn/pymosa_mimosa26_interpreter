@@ -1,5 +1,4 @@
-''' Class to convert Mimosa26 raw data recorded with pymosa to hit maps.
-    Additional, events can be build from the hit table using the TLU data words and time reference data.
+''' Mimosa26 raw data converter for data recorded with pymosa.
 '''
 
 from __future__ import division
@@ -19,40 +18,20 @@ from pyBAR_mimosa26_interpreter import plotting
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - [%(levelname)-8s] (%(threadName)-10s) %(message)s")
 
 
-@njit
-def fill_occupancy_hist(hits):
-    hist = np.zeros(shape=(6, 1152, 576), dtype=np.int32)  # for each plane
-    for hit_index in range(hits.shape[0]):
-        col = hits[hit_index]['column']
-        row = hits[hit_index]['row']
-        plane_id = hits[hit_index]['plane']
-        hist[plane_id, col, row] += 1
-    return hist
-
-
-@njit
-def fill_event_status_hist(hist, hits):
-    for hit_index in range(hits.shape[0]):
-        event_status = hits[hit_index]['event_status']
-        plane = hits[hit_index]['plane']
-        for i in range(32):
-            if event_status & (1 << i):
-                hist[plane][i] += 1
-
-
 class DataInterpreter(object):
-    ''' Class to provide an easy to use interface to encapsulate the interpretation process.'''
+    ''' Class to provide an easy to use interface to encapsulate the interpretation and event building process.
+    '''
 
-    def __init__(self, raw_data_file, time_reference_file=None, analyzed_data_file=None, create_pdf=True, trigger_data_format=2, chunk_size=1000000):
+    def __init__(self, raw_data_file, analyzed_data_file=None, output_filename=None, create_pdf=True, trigger_data_format=2, chunk_size=1000000):
         '''
         Parameters
         ----------
-        raw_data_file : string or tuple, list
-            A string with the raw data file name. File ending (.h5)
+        raw_data_file : string
+            The filename of the input raw data file.
         analyzed_data_file : string
-            The file name of the output analyzed data file. File ending (.h5)
-            Does not have to be set.
-        create_pdf : boolean
+            The file name of the output analyzed data file.
+            The file extension (.h5) may not be provided.
+        create_pdf : bool
             Creates interpretation plots into one PDF file.
         trigger_data_format : integer
             Number which indicates the used trigger data format.
@@ -61,12 +40,9 @@ class DataInterpreter(object):
             2: TLU word is 15 bit timestamp + 16 bit trigger number
             Only trigger data format 2 is supported, since the event building requires a trigger timestamp in order to work reliably.
         chunk_size : integer
-            How many raw data words are analyzed at once in RAM. Limited by available RAM. Faster
-            interpretation for larger numbers. RAM needed is approximately 10 * chunk_size in bytes.
+            Chunk size of the data when reading from file. The larger the chunk size, the more RAM is consumed.
         '''
         self._raw_data_file = raw_data_file
-
-        self._time_reference_file = time_reference_file
 
         if analyzed_data_file:
             if os.path.splitext(analyzed_data_file)[1].strip().lower() != ".h5":
@@ -201,3 +177,24 @@ class DataInterpreter(object):
                 if self.output_pdf:
                     logging.info('Closing output PDF file: %s', str(self.output_pdf._file.fh.name))
                     self.output_pdf.close()
+
+
+@njit
+def fill_occupancy_hist(hits):
+    hist = np.zeros(shape=(6, 1152, 576), dtype=np.int32)  # for each plane
+    for hit_index in range(hits.shape[0]):
+        col = hits[hit_index]['column']
+        row = hits[hit_index]['row']
+        plane_id = hits[hit_index]['plane']
+        hist[plane_id, col, row] += 1
+    return hist
+
+
+@njit
+def fill_event_status_hist(hist, hits):
+    for hit_index in range(hits.shape[0]):
+        event_status = hits[hit_index]['event_status']
+        plane = hits[hit_index]['plane']
+        for i in range(32):
+            if event_status & (1 << i):
+                hist[plane][i] += 1

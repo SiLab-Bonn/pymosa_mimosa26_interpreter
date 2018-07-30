@@ -1,13 +1,14 @@
 import os
+
+from hypothesis import given, settings
+import hypothesis.strategies as st
+import unittest
+
 import numpy as np
 import tables as tb
 
 from pyBAR_mimosa26_interpreter import data_interpreter
 from pyBAR_mimosa26_interpreter import raw_data_interpreter
-
-from hypothesis import given, settings
-import hypothesis.strategies as st
-import unittest
 
 
 testing_path = os.path.dirname(__file__)  # Get file path
@@ -17,17 +18,22 @@ tests_data_folder = os.path.abspath(os.path.join(os.path.dirname(os.path.realpat
 def create_tlu_word(trigger_number, time_stamp):
     return ((time_stamp << 16) & (0x7FFF0000)) | (trigger_number & 0x0000FFFF) | (1 << 31 & 0x80000000)
 
+
 def create_m26_header(plane, data_loss=False):
     return (0x20 << 24 & 0xFF000000) | (plane << 20 & 0x00F00000)
+
 
 def create_frame_header_low(plane, m26_timestamp):
     return create_m26_header(plane=plane) | (m26_timestamp & 0x0000FFFF) | (1 << 16 & 0x00010000)
 
+
 def create_frame_header_high(plane, m26_timestamp):
     return create_m26_header(plane=plane) | (((m26_timestamp & 0xFFFF0000) >> 16) & 0x0000FFFF)
 
+
 def create_frame_id_low(plane, m26_frame_number):
     return create_m26_header(plane=plane) | (m26_frame_number & 0x0000FFFF)
+
 
 def create_frame_id_high(plane, m26_frame_number):
     return create_m26_header(plane=plane) | (((m26_frame_number & 0xFFFF0000) >> 16) & 0x0000FFFF)
@@ -67,7 +73,6 @@ for index, data in enumerate(result_array):
 
 
 input_file = os.path.join(tests_data_folder, 'anemone_raw_data.h5')
-time_reference_file = os.path.join(tests_data_folder, 'time_reference_interpreted_data.h5')
-with data_interpreter.DataInterpreter(raw_data_file=input_file, time_reference_file=time_reference_file, trigger_data_format=2, create_pdf=True, chunk_size=1000000) as raw_data_analysis:
+with data_interpreter.DataInterpreter(raw_data_file=input_file, trigger_data_format=2, create_pdf=True, chunk_size=1000000) as raw_data_analysis:
     raw_data_analysis.create_hit_table = True
     raw_data_analysis.interpret_word_table()
