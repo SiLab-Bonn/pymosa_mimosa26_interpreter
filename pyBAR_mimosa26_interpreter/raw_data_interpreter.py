@@ -56,10 +56,10 @@ TRIGGER_NUMBER_ERROR = 0x00000001  # Trigger number has not increased by one
 NO_TRIGGER_WORD_ERROR = 0x00000002  # Event has no trigger word associated
 TRIGGER_TIMESTAMP_OVERFLOW = 0x00000004  # Indicating the overflow of the trigger timestamp
 TRIGGER_NUMBER_OVERFLOW = 0x00000008  # Indicating the overflow of the trigger number
-DATA_ERROR = 0x00000100  # Indicating any occurrence of data errors in the Momosa26 protocol (e.g., invalid column/row, invalid data length, data loss)
-TIMESTAMP_OVERFLOW = 0x00000200  # Indicating the overflow of the Mimosa26 timestamp
-FRAME_ID_OVERFLOW = 0x00000400  # Indicating the overflow of the Mimosa26 frame ID
-OVERFLOW_FLAG = 0x00000800  # Indicating the occurrence of the overflow flag for a particular Mimosa26 row
+DATA_ERROR = 0x00000010  # Indicating any occurrence of data errors in the Momosa26 protocol (e.g., invalid column/row, invalid data length, data loss)
+TIMESTAMP_OVERFLOW = 0x00000020  # Indicating the overflow of the Mimosa26 timestamp
+FRAME_ID_OVERFLOW = 0x00000040  # Indicating the overflow of the Mimosa26 frame ID
+OVERFLOW_FLAG = 0x00000080  # Indicating the occurrence of the overflow flag for a particular Mimosa26 row
 
 
 # Mimosa26 raw data
