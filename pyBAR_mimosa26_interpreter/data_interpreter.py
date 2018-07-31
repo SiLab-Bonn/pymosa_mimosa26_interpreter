@@ -130,7 +130,7 @@ class DataInterpreter(object):
                 logging.info("Interpreting raw data...")
                 for i in tqdm(range(0, in_file_h5.root.raw_data.shape[0], self.chunk_size)):  # Loop over all words in the actual raw data file in chunks
                     raw_data_chunk = in_file_h5.root.raw_data.read(i, i + self.chunk_size)
-                    hits = self._raw_data_interpreter.interpret_raw_data(raw_data_chunk)
+                    hits = self._raw_data_interpreter.interpret_raw_data(raw_data=raw_data_chunk)
 
                     if self.create_hit_table:
                         hit_table.append(hits)
@@ -140,6 +140,17 @@ class DataInterpreter(object):
 
                     if self.create_error_hist:
                         fill_event_status_hist(self.event_status_hist, hits)
+
+                hits = self._raw_data_interpreter.interpret_raw_data(raw_data=None, build_all_events=True)
+
+                if self.create_hit_table:
+                    hit_table.append(hits)
+
+                if self.create_occupancy_hist:
+                    occupancy_hist += fill_occupancy_hist(hits)
+
+                if self.create_error_hist:
+                    fill_event_status_hist(self.event_status_hist, hits)
 
                 # Add histograms to data file and create plots
                 for plane in range(6):
