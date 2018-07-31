@@ -256,7 +256,8 @@ class RawDataInterpreter(object):
             event_number=self.event_number,
             trigger_number=self.trigger_number,
             trigger_timestamp=self.trigger_timestamp,
-            add_missing_events=self.add_missing_events)
+            add_missing_events=self.add_missing_events,
+            build_all_events=build_all_events)
         # Build events
         self.trigger_data, self.trigger_data_index, self.telescope_data, self.telescope_data_index, self.hits, self.hits_index = _build_events(
             trigger_data=self.trigger_data,
@@ -275,7 +276,7 @@ class RawDataInterpreter(object):
 
 
 @njit(locals={'trigger_data_index': numba.int64, 'telescope_data_index': numba.int64, 'trigger_status': numba.uint32, 'last_trigger_number': numba.int64, 'last_trigger_timestamp': numba.int64, 'n_missing_events': numba.uint32})
-def _interpret_raw_data(raw_data, trigger_data, trigger_data_index, telescope_data, telescope_data_index, m26_frame_ids, m26_frame_length, m26_data_loss, m26_word_index, m26_timestamps, last_m26_timestamps, m26_n_words, m26_rows, m26_frame_status, last_completed_m26_frame_ids, event_number, trigger_number, trigger_timestamp, add_missing_events):
+def _interpret_raw_data(raw_data, trigger_data, trigger_data_index, telescope_data, telescope_data_index, m26_frame_ids, m26_frame_length, m26_data_loss, m26_word_index, m26_timestamps, last_m26_timestamps, m26_n_words, m26_rows, m26_frame_status, last_completed_m26_frame_ids, event_number, trigger_number, trigger_timestamp, add_missing_events, build_all_events):
     ''' This function is interpreting the Mimosa26 telescope raw data and creates temporary trigger and telescope data arrays.
     The interpreter checks for trigger and Mimosa26 data errors.
 
@@ -476,6 +477,18 @@ def _interpret_raw_data(raw_data, trigger_data, trigger_data_index, telescope_da
             for actual_plane_id in range(6):
                 m26_data_loss[actual_plane_id] = True
 
+    # Set the status bits for priviously incomplete frames
+    if build_all_events:
+        for curr_plane_id in range(6):
+            index = telescope_data_index
+            while index >= 0:
+                if telescope_data[index]['plane'] == curr_plane_id:
+                    if telescope_data[index]['frame_id'] > last_completed_m26_frame_ids[curr_plane_id]:
+                        telescope_data[index]['frame_status'] |= DATA_ERROR
+                    else:
+                        break
+                index -= 1
+
     return trigger_data, trigger_data_index, telescope_data, telescope_data_index, m26_frame_ids, m26_frame_length, m26_data_loss, m26_word_index, m26_timestamps, last_m26_timestamps, m26_n_words, m26_rows, m26_frame_status, last_completed_m26_frame_ids, event_number, trigger_number, trigger_timestamp
 
 
@@ -491,6 +504,7 @@ def _build_events(trigger_data, trigger_data_index, telescope_data, telescope_da
     finished_telescope_data_indices = np.full(shape=6, dtype=np.int64, fill_value=-1)
     last_event_trigger_data_indices = np.full(shape=6, dtype=np.int64, fill_value=-1)
     finished_event = np.ones(shape=6, dtype=np.bool_)
+    curr_event_status = np.zeros(shape=6, dtype=np.uint32)
 
     curr_trigger_data_index = 0
     curr_hits_index = hits_index
@@ -505,6 +519,7 @@ def _build_events(trigger_data, trigger_data_index, telescope_data, telescope_da
         # Reset status
         for current_index in range(6):
             finished_event[current_index] = False
+            curr_event_status[current_index] = 0
         while curr_telescope_data_index <= telescope_data_index:
             curr_plane = telescope_data[curr_telescope_data_index]['plane']
             curr_frame_id = telescope_data[curr_telescope_data_index]['frame_id']
@@ -526,7 +541,8 @@ def _build_events(trigger_data, trigger_data_index, telescope_data, telescope_da
                     hits[curr_hits_index]['frame_id'] = curr_frame_id
                     hits[curr_hits_index]['column'] = telescope_data[curr_telescope_data_index]['column']
                     hits[curr_hits_index]['row'] = telescope_data[curr_telescope_data_index]['row']
-                    hits[curr_hits_index]['event_status'] = telescope_data[curr_telescope_data_index]['frame_status'] | trigger_status
+                    hits[curr_hits_index]['event_status'] = 0
+                    curr_event_status[curr_plane] |= telescope_data[curr_telescope_data_index]['frame_status'] | trigger_status
                 elif hit_timestamp_start > trigger_timestamp:
                     # latest_trigger_data_indices[telescope_data[curr_telescope_data_index]['plane']] = curr_trigger_data_index
                     finished_event[telescope_data[curr_telescope_data_index]['plane']] = True
@@ -535,15 +551,28 @@ def _build_events(trigger_data, trigger_data_index, telescope_data, telescope_da
                         for current_index in range(6):
                             last_event_trigger_data_indices[current_index] = finished_telescope_data_indices[current_index]
                         hits_index = curr_hits_index
+                        # Set event status for complete event
+                        index = curr_hits_index
+                        while trigger_event_number == hits[index]['event_number']:
+                            hits[index]['event_status'] = curr_event_status[hits[index]['plane']]
+                            index -= 1
                         break
                 else:  # trigger_timestamp >= hit_timestamp_stop
                     finished_telescope_data_indices[telescope_data[curr_telescope_data_index]['plane']] = curr_telescope_data_index
             curr_telescope_data_index += 1
         # special case
         if build_all_events:
+            hits_index = curr_hits_index
+            # Set event status for complete event
+            index = curr_hits_index
+            while index >= 0:
+                if hits[index]['event_number'] == trigger_event_number:
+                    hits[index]['event_status'] = curr_event_status[hits[index]['plane']]
+                elif hits[index]['event_number'] < trigger_event_number:
+                    break
+                index -= 1
             for current_index in range(6):
                 finished_event[current_index] = True
-                hits_index = curr_hits_index
         curr_trigger_data_index += 1
 
     if build_all_events:
