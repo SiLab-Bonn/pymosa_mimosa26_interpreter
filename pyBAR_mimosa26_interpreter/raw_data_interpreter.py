@@ -24,7 +24,7 @@ import numpy as np
 
 FRAME_UNIT_CYCLE = 4608  # = 115.2 * 40, time for one frame in units of 40 MHz clock cylces
 ROW_UNIT_CYCLE = 8  # = 115.2 * 40 / 576, time to read one row in units of 40 MHz clock cycles
-LOWER_LIMIT = 48  # Correct for offset between M26 40 MHz clock and 40 MHz from R/O system. Offset determined by maximum correlation between the time reference and Mimosa26 telescope.
+TIMING_OFFSET = 48  # Correct for offset between M26 40 MHz clock and 40 MHz from R/O system. Offset determined by maximum correlation between the time reference and Mimosa26 telescope.
 
 hits_dtype = np.dtype([
     ('plane', '<u1'),
@@ -214,6 +214,7 @@ class RawDataInterpreter(object):
 
         # Properties
         self._add_missing_events = False
+        self._timing_offset = TIMING_OFFSET
 
     @property
     def add_missing_events(self):
@@ -222,6 +223,14 @@ class RawDataInterpreter(object):
     @add_missing_events.setter
     def add_missing_events(self, value):
         self._add_missing_events = bool(value)
+
+    @property
+    def timing_offset(self):
+        return self._timing_offset
+
+    @timing_offset.setter
+    def timing_offset(self, value):
+        self._timing_offset = int(value)
 
     def interpret_raw_data(self, raw_data=None, build_all_events=False):
         ''' Interpreter funtion. The function can be called
@@ -267,6 +276,7 @@ class RawDataInterpreter(object):
             hits=self.hits,
             hits_index=self.hits_index,
             last_completed_m26_frame_ids=self.last_completed_m26_frame_ids,
+            timing_offset=self.timing_offset,
             build_all_events=build_all_events)
         # Create a copy of the hits array that is returned
         hits = self.hits[:self.hits_index + 1].copy()
@@ -493,7 +503,7 @@ def _interpret_raw_data(raw_data, trigger_data, trigger_data_index, telescope_da
 
 
 @njit(locals={'hits_index': numba.int64, 'curr_trigger_data_index': numba.int64, 'curr_telescope_data_index': numba.int64})
-def _build_events(trigger_data, trigger_data_index, telescope_data, telescope_data_index, hits, hits_index, last_completed_m26_frame_ids, build_all_events):
+def _build_events(trigger_data, trigger_data_index, telescope_data, telescope_data_index, hits, hits_index, last_completed_m26_frame_ids, timing_offset, build_all_events):
     ''' This function is builds events from the temporary trigger and telescope data arrays.
 
     Parameters:
@@ -524,7 +534,7 @@ def _build_events(trigger_data, trigger_data_index, telescope_data, telescope_da
             curr_plane = telescope_data[curr_telescope_data_index]['plane']
             curr_frame_id = telescope_data[curr_telescope_data_index]['frame_id']
             if not finished_event[curr_plane] and (build_all_events or curr_frame_id <= last_completed_m26_frame_ids[curr_plane]):
-                hit_timestamp_start = telescope_data[curr_telescope_data_index]['time_stamp'] + telescope_data[curr_telescope_data_index]['row'] * ROW_UNIT_CYCLE - 2 * FRAME_UNIT_CYCLE - LOWER_LIMIT
+                hit_timestamp_start = telescope_data[curr_telescope_data_index]['time_stamp'] + telescope_data[curr_telescope_data_index]['row'] * ROW_UNIT_CYCLE - 2 * FRAME_UNIT_CYCLE - timing_offset
                 hit_timestamp_stop = hit_timestamp_start + FRAME_UNIT_CYCLE + ROW_UNIT_CYCLE
                 if hit_timestamp_start <= trigger_timestamp and trigger_timestamp < hit_timestamp_stop:
                     curr_hits_index += 1
