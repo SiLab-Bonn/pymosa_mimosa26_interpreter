@@ -19,9 +19,9 @@ for curr_chunk_size in range(start_chunk_size, start_chunk_size + iterations):
     if not checks_passed:
         break
     temp_output_file = os.path.join(tests_data_folder, 'anemone_raw_data_interpreted_chunk_size_%d.h5' % curr_chunk_size)
-    with data_interpreter.DataInterpreter(raw_data_file=input_file, analyzed_data_file=temp_output_file, trigger_data_format=2, create_pdf=False, chunk_size=curr_chunk_size) as raw_data_analysis:
-        raw_data_analysis.create_hit_table = True
-        raw_data_analysis.interpret_word_table()
+    with data_interpreter.DataInterpreter(raw_data_file=input_file, analyzed_data_file=temp_output_file, trigger_data_format=2, create_pdf=False, chunk_size=curr_chunk_size) as data_interpreter:
+        data_interpreter.create_hit_table = True
+        data_interpreter.interpret_word_table()
 
     checks_passed, error_msg = compare_h5_files(reference_file, temp_output_file, node_names=None, detailed_comparison=True, exact=True, rtol=1e-5, atol=1e-8, chunk_size=1000000)
     if checks_passed:

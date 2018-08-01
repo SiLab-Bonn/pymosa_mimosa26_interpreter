@@ -22,7 +22,7 @@ class DataInterpreter(object):
     ''' Class to provide an easy to use interface to encapsulate the interpretation and event building process.
     '''
 
-    def __init__(self, raw_data_file, analyzed_data_file=None, output_filename=None, create_pdf=True, trigger_data_format=2, chunk_size=1000000):
+    def __init__(self, raw_data_file, analyzed_data_file=None, create_pdf=True, trigger_data_format=2, chunk_size=1000000):
         '''
         Parameters
         ----------
@@ -74,10 +74,9 @@ class DataInterpreter(object):
         self.set_standard_settings()
 
     def set_standard_settings(self):
-        self.create_occupancy_hist = True
-        self.create_error_hist = True
-        self.create_hit_table = False
-        self._filter_table = tb.Filters(complib='blosc', complevel=5, fletcher32=False)
+        self.create_occupancy_hist = False
+        self.create_error_hist = False
+        self.create_hit_table = True
 
     @property
     def create_occupancy_hist(self):
@@ -85,15 +84,7 @@ class DataInterpreter(object):
 
     @create_occupancy_hist.setter
     def create_occupancy_hist(self, value):
-        self._create_occupancy_hist = value
-
-    @property
-    def create_hit_table(self):
-        return self._create_hit_table
-
-    @create_hit_table.setter
-    def create_hit_table(self, value):
-        self._create_hit_table = value
+        self._create_occupancy_hist = bool(value)
 
     @property
     def create_error_hist(self):
@@ -101,7 +92,15 @@ class DataInterpreter(object):
 
     @create_error_hist.setter
     def create_error_hist(self, value):
-        self._create_error_hist = value
+        self._create_error_hist = bool(value)
+
+    @property
+    def create_hit_table(self):
+        return self._create_hit_table
+
+    @create_hit_table.setter
+    def create_hit_table(self, value):
+        self._create_hit_table = bool(value)
 
     def __enter__(self):
         return self
@@ -115,11 +114,15 @@ class DataInterpreter(object):
             logging.info('Trigger data format: %s', self.trigger_data_format)
             with tb.open_file(self._analyzed_data_file, 'w') as out_file_h5:
                 if self.create_hit_table:
-                    hit_table = out_file_h5.create_table(where=out_file_h5.root,
-                                                         name='Hits',
-                                                         description=raw_data_interpreter.hits_dtype,
-                                                         title='hit_data',
-                                                         filters=tb.Filters(complib='blosc', complevel=5, fletcher32=False))
+                    hit_table = out_file_h5.create_table(
+                        where=out_file_h5.root,
+                        name='Hits',
+                        description=raw_data_interpreter.hits_dtype,
+                        title='hit_data',
+                        filters=tb.Filters(
+                            complib='blosc',
+                            complevel=5,
+                            fletcher32=False))
 
                 if self.create_occupancy_hist:
                     occupancy_hist = np.zeros(shape=(6, 1152, 576), dtype=np.int32)  # for each plane
@@ -158,12 +161,16 @@ class DataInterpreter(object):
                     logging.info('Store histograms and create plots for plane %d', plane)
 
                     if self.create_occupancy_hist:
-                        occupancy_array = out_file_h5.create_carray(where=out_file_h5.root,
-                                                                    name='HistOcc_plane%d' % plane,
-                                                                    title='Occupancy Histogram of Mimosa plane %d' % plane,
-                                                                    atom=tb.Atom.from_dtype(occupancy_hist[plane].dtype),
-                                                                    shape=occupancy_hist[plane].shape,
-                                                                    filters=self._filter_table)
+                        occupancy_array = out_file_h5.create_carray(
+                            where=out_file_h5.root,
+                            name='HistOcc_plane%d' % plane,
+                            title='Occupancy Histogram of Mimosa plane %d' % plane,
+                            atom=tb.Atom.from_dtype(occupancy_hist[plane].dtype),
+                            shape=occupancy_hist[plane].shape,
+                            filters=tb.Filters(
+                                complib='blosc',
+                                complevel=5,
+                                fletcher32=False))
                         occupancy_array[:] = occupancy_hist[plane]
                         try:
                             if self.output_pdf:

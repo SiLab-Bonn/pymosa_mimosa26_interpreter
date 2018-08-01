@@ -73,6 +73,6 @@ for index, data in enumerate(result_array):
 
 
 input_file = os.path.join(tests_data_folder, 'anemone_raw_data.h5')
-with data_interpreter.DataInterpreter(raw_data_file=input_file, trigger_data_format=2, create_pdf=True, chunk_size=1000000) as raw_data_analysis:
-    raw_data_analysis.create_hit_table = True
-    raw_data_analysis.interpret_word_table()
+with data_interpreter.DataInterpreter(raw_data_file=input_file, trigger_data_format=2, create_pdf=True, chunk_size=1000000) as data_interpreter:
+    data_interpreter.create_hit_table = True
+    data_interpreter.interpret_word_table()
