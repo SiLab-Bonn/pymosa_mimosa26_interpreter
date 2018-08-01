@@ -1,24 +1,32 @@
 
 # pyBAR_mimosa26_interpreter [![Build Status](https://travis-ci.org/SiLab-Bonn/pyBAR_mimosa26_interpreter.svg?branch=master)](https://travis-ci.org/SiLab-Bonn/pyBAR_mimosa26_interpreter) [![Build Status](https://ci.appveyor.com/api/projects/status/github/SiLab-Bonn/pyBAR_mimosa26_interpreter?svg=true)](https://ci.appveyor.com/project/DavidLP/pyBAR_mimosa26_interpreter-71xwl)
 
-pyBAR_mimosa26_interpreter - A Mimosa 26 raw data interpreter in Python.
+pyBAR_mimosa26_interpreter - A Mimosa26 raw data interpreter in Python.
 
-This package can be used to interpred raw data from the Mimosa 26 based telescope taken with the readout framework pyBAR. The interpretation is just-in-time compiledto increase the speed.
+This package makes it possible to interpret Mimosa26 raw data (from a Mimosa26 telescope) recorded with `pymosa <https://github.com/SiLab-Bonn/pymosa>`_. 
+Additionally, an event building is done using trigger words from the TLU. Moreover, it contains the possibilty to create for each Mimosa26 plane an occupancy map.
+
+**Note:**
+For the interpretation it is needed that the trigger data format is set to 2 (15 bit trigger number + 16 bit trigger timestamp)
 
 ## Installation
 
-The following packages are required for pyBAR's Mimosa 26 interpreter:
+Install the required packages:
   ```
-  numpy  tables numba
+  conda install numba numpy tables matplotlib tqdm
+  ```
+
+Then install the Mimosa26 interpreter:
+  ```
+  python setup.py develop
   ```
 
 ## Usage
-```
-TBD
-```
 
-Als take a look at the example folder.
-## Support
+An example script which does the raw data interpretation as well as the creation of a hit table which can be used for `testbeam analysis <https://github.com/SiLab-Bonn/testbeam_analysis>`_
+is located in the `example folder <https://github.com/SiLab-Bonn/pyBAR_mimosa26_interpreter/blob/new_mimosa26_interpreter/examples/example.py>`_
 
-To subscribe to the pyBAR mailing list, click [here](https://e-groups.cern.ch/e-groups/EgroupsSubscription.do?egroupName=pybar-devel). Please ask questions on the pyBAR mailing list [pybar-devel@cern.ch](mailto:pybar-devel@cern.ch?subject=bug%20report%20%2F%20feature%20request) (subscription required) or file a new bug report / feature request [here](https://github.com/SiLab-Bonn/pyBAR_fei4_interpreter/issues/new).
 
+## Documentation
+
+Documentation can be found under:

@@ -2,8 +2,8 @@
 from setuptools import setup, find_packages  # This setup relies on setuptools since distutils is insufficient and badly hacked code
 
 version = '0.0.1'
-author = 'David-Leon Pohl, Toko Hirono'
-author_email = 'pohl@physik.uni-bonn.de,setup.py'
+author = 'Yannick Dieter, Toko Hirono, Jens Janssen, David-Leon Pohl, Pascal Wolf'
+author_email = 'dieter@physik.uni-bonn.de, janssen@physik.uni-bonn.de, pohl@physik.uni-bonn.de'
 
 # requirements for core functionality from requirements.txt
 with open('requirements.txt') as f:
@@ -24,6 +24,6 @@ setup(
     packages=find_packages(),
     include_package_data=True,  # accept all data files and directories matched by MANIFEST.in or found in source control
     package_data={'': ['README.*', 'VERSION'], 'docs': ['*'], 'examples': ['*']},
-    keywords=['mimosa', 'test beam', 'pixel'],
+    keywords=['mimosa26', 'test beam', 'pixel'],
     platforms='any'
 )
