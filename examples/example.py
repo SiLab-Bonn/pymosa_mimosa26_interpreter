@@ -81,10 +81,10 @@ def format_hit_table(input_filename, output_filenames=None, chunk_size=1000000):
 
 
 if __name__ == "__main__":
-    # Input interpreted filename
-    raw_data_file = 'anemone_raw_data.h5'
+    # Input raw data filename
+    raw_data_file = 'pymosa_raw_data.h5'
     # Output interpreted filename
-    analyzed_data_file = 'anemone_interpreted.h5'
+    analyzed_data_file = 'pymosa_interpreted_data.h5'
     with data_interpreter.DataInterpreter(raw_data_file=raw_data_file, analyzed_data_file=analyzed_data_file) as data_interpreter:
         data_interpreter.create_occupancy_hist = True
         data_interpreter.create_error_hist = True
