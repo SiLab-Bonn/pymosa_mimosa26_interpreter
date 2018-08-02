@@ -46,6 +46,7 @@ def format_hit_table(input_filename, output_filenames=None, chunk_size=1000000):
     if output_filenames is None:
         output_filenames = [(os.path.splitext(input_filename)[0] + '_telescope' + str(plane + 1) + '.h5') for plane in range(6)]
     with tb.open_file(filename=input_filename, mode='r') as in_file_h5:
+        last_event_number = np.zeros(shape=1, dtype=np.int64)
         input_hits_table = in_file_h5.root.Hits
         with ExitStack() as output_files_stack:
             out_files_h5 = [output_files_stack.enter_context(tb.open_file(filename=filename, mode='w')) for filename in output_filenames]
@@ -63,15 +64,18 @@ def format_hit_table(input_filename, output_filenames=None, chunk_size=1000000):
                 output_hits_tables.append(output_hits_table)
 
             for read_index in tqdm(range(0, input_hits_table.nrows, chunk_size)):
-                hits_data = input_hits_table.read(read_index, read_index + chunk_size)
+                hits_chunk = input_hits_table.read(read_index, read_index + chunk_size)
+                if np.any(np.diff(np.concatenate((last_event_number, hits_chunk['event_number']))) < 0):
+                    raise RuntimeError('The event number does not increase.')
+                last_event_number = hits_chunk['event_number'][-1:]
                 for plane, output_hits_table in enumerate(output_hits_tables):
-                    selected_hits = (hits_data['plane'] == plane)
+                    selected_hits = (hits_chunk['plane'] == plane)
                     hits_data_formatted = np.zeros(shape=np.count_nonzero(selected_hits), dtype=testbeam_analysis_dtype)
                     # Format data for testbeam analysis
-                    hits_data_formatted['event_number'] = hits_data[selected_hits]['event_number']
+                    hits_data_formatted['event_number'] = hits_chunk[selected_hits]['event_number']
                     hits_data_formatted['frame'] = 0
-                    hits_data_formatted['column'] = hits_data[selected_hits]['column'] + 1
-                    hits_data_formatted['row'] = hits_data[selected_hits]['row'] + 1
+                    hits_data_formatted['column'] = hits_chunk[selected_hits]['column'] + 1
+                    hits_data_formatted['row'] = hits_chunk[selected_hits]['row'] + 1
                     hits_data_formatted['charge'] = 0
                     # Append data to table
                     output_hits_table.append(hits_data_formatted)
