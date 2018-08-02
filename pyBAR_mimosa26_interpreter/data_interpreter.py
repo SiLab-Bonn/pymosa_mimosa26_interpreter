@@ -60,16 +60,11 @@ class DataInterpreter(object):
             self.output_pdf = None
 
         self._raw_data_interpreter = raw_data_interpreter.RawDataInterpreter()
-        # self._event_builder = event_builder.EventBuilder(chunk_size)
 
         # Std. settings
-        # if chunk_size < 10000:
-        #     raise ValueError('Please chose reasonable large chunk size')
         self.chunk_size = chunk_size
         if trigger_data_format != 2:
             raise ValueError('Trigger data format different than 2 is not yet supported. For event building a trigger timestamp is required!')
-
-        self.trigger_data_format = trigger_data_format
 
         self.set_standard_settings()
 
@@ -110,8 +105,7 @@ class DataInterpreter(object):
 
     def interpret_word_table(self):
         with tb.open_file(self._raw_data_file, 'r') as in_file_h5:
-            logging.info('Interpreting raw data file %s', self._raw_data_file)
-            logging.info('Trigger data format: %s', self.trigger_data_format)
+            logging.info('Interpreting raw data file %s...', self._raw_data_file)
             with tb.open_file(self._analyzed_data_file, 'w') as out_file_h5:
                 if self.create_hit_table:
                     hit_table = out_file_h5.create_table(
@@ -144,6 +138,7 @@ class DataInterpreter(object):
                     if self.create_error_hist:
                         fill_event_status_hist(self.event_status_hist, hits)
 
+                # get last incomplete events
                 hits = self._raw_data_interpreter.interpret_raw_data(raw_data=None, build_all_events=True)
 
                 if self.create_hit_table:
