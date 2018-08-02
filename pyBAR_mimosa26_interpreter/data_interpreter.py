@@ -22,7 +22,7 @@ class DataInterpreter(object):
     ''' Class to provide an easy to use interface to encapsulate the interpretation and event building process.
     '''
 
-    def __init__(self, raw_data_file, analyzed_data_file=None, create_pdf=True, trigger_data_format=2, chunk_size=1000000):
+    def __init__(self, raw_data_file, analyzed_data_file=None, create_pdf=True, trigger_data_format=2, add_missing_events=None, timing_offset=None, chunk_size=1000000):
         '''
         Parameters
         ----------
@@ -60,6 +60,10 @@ class DataInterpreter(object):
             self.output_pdf = None
 
         self._raw_data_interpreter = raw_data_interpreter.RawDataInterpreter()
+        if add_missing_events is not None:
+            self._raw_data_interpreter.add_missing_events = add_missing_events
+        if timing_offset is not None:
+            self._raw_data_interpreter.timing_offset = timing_offset
 
         # Std. settings
         self.chunk_size = chunk_size
