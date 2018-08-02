@@ -12,15 +12,13 @@ def plot_fancy_occupancy(hist, title, z_max=None, filename=None):
         z_max = 2 * np.ma.median(hist)
     elif z_max == 'maximum' or z_max is None:
         z_max = np.ma.max(hist)
-    if z_max < 1 or hist.all() is np.ma.masked:
+    if z_max < 1 or hist.all() is np.ma.masked or np.allclose(0, hist):
         z_max = 1.0
 
     fig = Figure()
     FigureCanvas(fig)
     ax = fig.add_subplot(111)
-
     ax.set_title(title, size=6)
-
     extent = [0.5, 1152.5, 576.5, 0.5]
     bounds = np.linspace(start=0, stop=z_max, num=255, endpoint=True)
     if z_max == 'median':
@@ -30,13 +28,13 @@ def plot_fancy_occupancy(hist, title, z_max=None, filename=None):
     cmap.set_bad('w', 1.0)
     norm = colors.BoundaryNorm(bounds, cmap.N)
 
-    im = ax.imshow(hist, interpolation='nearest', aspect='auto', cmap=cmap, norm=norm, extent=extent)  # TODO: use pcolor or pcolormesh
+    im = ax.imshow(hist, interpolation='none', aspect='auto', cmap=cmap, norm=norm, extent=extent)  # TODO: use pcolor or pcolormesh
     ax.set_ylim((576.5, 0.5))
     ax.set_xlim((0.5, 1152.5))
     ax.set_xlabel('Column')
     ax.set_ylabel('Row')
 
-    # Create new axes on the right and on the top of the current axes
+    # create new axes on the right and on the top of the current axes
     # The first argument of the new_vertical(new_horizontal) method is
     # the height (width) of the axes to be created in inches.
     divider = make_axes_locatable(ax)
@@ -52,8 +50,11 @@ def plot_fancy_occupancy(hist, title, z_max=None, filename=None):
 
     axHistx.bar(x=range(1, 1153), height=hight, align='center', linewidth=0)
     axHistx.set_xlim((0.5, 1152.5))
-    if hist.all() is np.ma.masked:
+    if hist.all() is np.ma.masked or np.allclose(0, hist):
         axHistx.set_ylim((0, 1))
+    else:
+        x_c_max = np.ceil(np.percentile(hight, 99))
+        axHistx.set_ylim(0, max(1, x_c_max))
     axHistx.locator_params(axis='y', nbins=3)
     axHistx.ticklabel_format(style='sci', scilimits=(0, 4), axis='y')
     axHistx.set_ylabel('#')
@@ -61,8 +62,11 @@ def plot_fancy_occupancy(hist, title, z_max=None, filename=None):
 
     axHisty.barh(y=range(1, 577), width=width, align='center', linewidth=0)
     axHisty.set_ylim((576.5, 0.5))
-    if hist.all() is np.ma.masked:
+    if hist.all() is np.ma.masked or np.allclose(0, hist):
         axHisty.set_xlim((0, 1))
+    else:
+        y_c_max = np.ceil(np.percentile(width, 99))
+        axHisty.set_xlim(0, max(1, y_c_max))
     axHisty.locator_params(axis='x', nbins=3)
     axHisty.ticklabel_format(style='sci', scilimits=(0, 4), axis='x')
     axHisty.set_xlabel('#')
