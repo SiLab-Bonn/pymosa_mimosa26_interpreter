@@ -22,7 +22,7 @@ class DataInterpreter(object):
     ''' Class to provide an easy to use interface to encapsulate the interpretation and event building process.
     '''
 
-    def __init__(self, raw_data_file, analyzed_data_file=None, create_pdf=True, trigger_data_format=2, add_missing_events=None, timing_offset=None, chunk_size=1000000):
+    def __init__(self, raw_data_file, analyzed_data_file=None, create_pdf=False, trigger_data_format=2, add_missing_events=None, timing_offset=None, chunk_size=1000000):
         '''
         Parameters
         ----------
