@@ -24,7 +24,7 @@ import numpy as np
 
 FRAME_UNIT_CYCLE = 4608  # = 115.2 * 40, time for one frame in units of 40 MHz clock cylces
 ROW_UNIT_CYCLE = 8  # = 115.2 * 40 / 576, time to read one row in units of 40 MHz clock cycles
-TIMING_OFFSET = 48  # Correct for offset between M26 40 MHz clock and 40 MHz from R/O system. Offset determined by maximum correlation between the time reference and Mimosa26 telescope.
+TIMING_OFFSET = 2170  # Correct for offset between M26 40 MHz clock and 40 MHz from R/O system. Offset determined by maximum correlation between the time reference and Mimosa26 telescope.
 
 hits_dtype = np.dtype([
     ('plane', '<u1'),
