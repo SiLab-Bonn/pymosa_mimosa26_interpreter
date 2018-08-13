@@ -52,6 +52,9 @@ class DataInterpreter(object):
         else:
             self._analyzed_data_file = os.path.splitext(self._raw_data_file)[0] + '_interpreted.h5'
 
+        if self._raw_data_file == self._analyzed_data_file:
+            raise ValueError('Filename of the input and output file must be different')
+
         if create_pdf:
             output_pdf_filename = os.path.splitext(self._raw_data_file)[0] + ".pdf"
             logging.info('Opening output PDF file: %s', output_pdf_filename)
