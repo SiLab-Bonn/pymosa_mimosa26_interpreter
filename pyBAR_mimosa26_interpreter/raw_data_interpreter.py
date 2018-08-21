@@ -233,7 +233,8 @@ class RawDataInterpreter(object):
         self._timing_offset = int(value)
 
     def interpret_raw_data(self, raw_data=None, build_all_events=False):
-        ''' Interpreter funtion. The function can be called
+        ''' Converting the raw data array to a hit array.
+        The is the only function that needs to be called to convert the raw data.
 
         Parameters:
         -----------
