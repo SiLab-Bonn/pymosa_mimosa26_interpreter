@@ -7,11 +7,56 @@ import unittest
 import tables as tb
 import numpy as np
 
-from pyBAR_mimosa26_interpreter import data_interpreter
 from pyBAR_mimosa26_interpreter.testing.tools import test_tools
+from pyBAR_mimosa26_interpreter import data_interpreter
+from pyBAR_mimosa26_interpreter import raw_data_interpreter
 
 testing_path = os.path.dirname(__file__)  # Get file path
 tests_data_folder = os.path.abspath(os.path.join(os.path.dirname(os.path.realpath(testing_path)) + r'/testing/'))  # Set test data path
+
+
+def create_tlu_word(trigger_number, time_stamp):
+            return ((time_stamp << 16) & (0x7FFF0000)) | (trigger_number & 0x0000FFFF) | (1 << 31 & 0x80000000)
+
+
+def create_m26_header(plane, data_loss=False):
+    return (0x20 << 24 & 0xFF000000) | (plane << 20 & 0x00F00000)
+
+
+def create_frame_header_low(plane, m26_timestamp):
+    return create_m26_header(plane=plane) | (m26_timestamp & 0x0000FFFF) | (1 << 16 & 0x00010000)
+
+
+def create_frame_header_high(plane, m26_timestamp):
+    return create_m26_header(plane=plane) | (((m26_timestamp & 0xFFFF0000) >> 16) & 0x0000FFFF)
+
+
+def create_frame_id_low(plane, m26_frame_number):
+    return create_m26_header(plane=plane) | (m26_frame_number & 0x0000FFFF)
+
+
+def create_frame_id_high(plane, m26_frame_number):
+    return create_m26_header(plane=plane) | (((m26_frame_number & 0xFFFF0000) >> 16) & 0x0000FFFF)
+
+
+def create_frame_length(plane, frame_length):
+    return create_m26_header(plane=plane) | (frame_length & 0x0000FFFF)
+
+
+def create_row_data_word(plane, row, n_words):
+    return create_m26_header(plane=plane) | (row << 4 & 0x00007FF0) | (n_words & 0x0000000F)
+
+
+def create_column_data_word(plane, column, n_hits):
+    return create_m26_header(plane=plane) | (column << 2 & 0x00001FFC) | (n_hits & 0x00000003)
+
+
+def create_frame_trailer0(plane):
+    return create_m26_header(plane=plane) | (0xaa50 & 0x0000FFFF)
+
+
+def create_frame_trailer1(plane):
+    return create_m26_header(plane=plane) | (((0xaa50 | plane)) & 0x0000FFFF)
 
 
 class TestInterpretation(unittest.TestCase):
@@ -22,75 +67,111 @@ class TestInterpretation(unittest.TestCase):
 
     @classmethod
     def tearDownClass(self):  # Remove created files
+        os.remove(os.path.join(tests_data_folder, 'anemone_raw_data.h5'))
+        os.remove(os.path.join(tests_data_folder, 'anemone_raw_data.pdf'))
+        os.remove(os.path.join(tests_data_folder, 'anemone_raw_data_interpreted_result.h5'))
         os.remove(os.path.join(tests_data_folder, 'anemone_raw_data_interpreted.h5'))
-        for plane in range(1, 7):
-            os.remove(os.path.join(tests_data_folder, 'anemone_raw_data_interpreted_event_build_plane_%i.h5' % plane))
-            os.remove(os.path.join(tests_data_folder, 'anemone_raw_data_interpreted_event_build_aligned_plane_%i.h5' % plane))
 
     def test_interpretation(self):
-        input_file = os.path.join(tests_data_folder, 'anemone_raw_data.h5')
-        time_reference_file = os.path.join(tests_data_folder, 'time_reference_interpreted_data.h5')
-        with data_interpreter.DataInterpreter(raw_data_file=input_file, time_reference_file=time_reference_file, trigger_data_format=2, create_pdf=False) as raw_data_analysis:
+        result_dtype = raw_data_interpreter.hits_dtype
+        FRAME_UNIT_CYCLE = raw_data_interpreter.FRAME_UNIT_CYCLE
+        ROW_UNIT_CYCLE = raw_data_interpreter.ROW_UNIT_CYCLE
+
+        test_data_file = os.path.join(tests_data_folder, 'anemone_raw_data.h5')
+        interpreted_result_file = os.path.join(tests_data_folder, 'anemone_raw_data_interpreted_result.h5')
+        interpreted_test_file = os.path.join(tests_data_folder, 'anemone_raw_data_interpreted.h5')
+
+        # TODO: add multi hits events, add events with multiple trigger, add ecents woth out of range trogger ts
+        def create_raw_data(n_events=1000, plane=0, delta_trigger_ts=8000, n_hits_per_events=1, n_events_trigger_hit=0.6, n_events_trigger_no_hit=0.3, n_events_no_trigger_hit=0.1):
+            # shuffle event type: 1: event with hit and trigger; 2: event with trigger but no hit; 3: event with hit but no trigger
+            event_type = np.random.choice([1, 2, 3], size=(n_events,), p=[n_events_trigger_hit, n_events_trigger_no_hit, n_events_no_trigger_hit])
+            print('Generated %i events. %i events have no hit, %i events have no trigger (or no matching trigger).' % (n_events, np.sum([event_type == 2]), np.sum([event_type == 3])))
+            result_array = np.zeros(shape=(np.sum([event_type == 1]),), dtype=result_dtype)
+            # create random trigger time stamps
+            trigger_time_stamps = np.linspace(start=14103, stop=14103 + n_events * delta_trigger_ts, num=n_events, dtype=np.int)
+            hit_i = 0
+            event_number = 0
+            event_status = 0
+
+            for index in range(n_events):
+                # generate row and column
+                row, column = [np.random.randint(low=0, high=566), np.random.randint(low=0, high=1151)]
+                # generate m26 time stamp based on event type
+                row_time_stamp = np.random.randint(low=trigger_time_stamps[index] - raw_data_interpreter.FRAME_UNIT_CYCLE - raw_data_interpreter.ROW_UNIT_CYCLE, high=trigger_time_stamps[index])
+                if event_type[index] != 3:
+                    raw_data.append(create_tlu_word(trigger_number=index, time_stamp=trigger_time_stamps[index]))
+                    event_number += 1
+                if event_type[index - 1] == 3 and index != 0:
+                    # if event before was event without trigger, set current event status as trigger increase error
+                    event_status |= raw_data_interpreter.TRIGGER_NUMBER_ERROR
+                raw_data.append(create_frame_header_low(plane=plane + 1, m26_timestamp=row_time_stamp + 2 * FRAME_UNIT_CYCLE - ROW_UNIT_CYCLE * row + raw_data_interpreter.TIMING_OFFSET))
+                raw_data.append(create_frame_header_high(plane=plane + 1, m26_timestamp=row_time_stamp + 2 * FRAME_UNIT_CYCLE - ROW_UNIT_CYCLE * row+ raw_data_interpreter.TIMING_OFFSET))
+                raw_data.append(create_frame_id_low(plane=plane + 1, m26_frame_number=index))
+                raw_data.append(create_frame_id_high(plane=plane + 1, m26_frame_number=index))
+                raw_data.append(create_frame_length(plane=plane + 1, frame_length=n_hits_per_events))  # number of data record words
+                raw_data.append(create_frame_length(plane=plane + 1, frame_length=n_hits_per_events))  # number of data record words
+                if event_type[index] != 2:  # only create hit words if event with hit 
+                    raw_data.append(create_row_data_word(plane=plane + 1, row=row, n_words=n_hits_per_events))
+                    raw_data.append(create_column_data_word(plane=plane + 1, column=column, n_hits=n_hits_per_events - 1))  # only one hit
+                raw_data.append(create_frame_trailer0(plane=plane + 1))
+                raw_data.append(create_frame_trailer1(plane=plane + 1))
+
+                # write to result array
+                if event_type[index] == 1:  # only write trigger hits to data file
+                    result_array['plane'][hit_i] = plane
+                    result_array['event_status'][hit_i] = event_status
+                    result_array['event_number'][hit_i] = event_number
+                    result_array['trigger_number'][hit_i] = index
+                    result_array['trigger_time_stamp'][hit_i] = trigger_time_stamps[index]
+                    result_array['frame_id'][hit_i] = index
+                    result_array['column'][hit_i] = column
+                    result_array['row'][hit_i] = row
+                    result_array['row_time_stamp'][hit_i] = row_time_stamp
+                    hit_i += 1
+                event_status = 0
+
+            return raw_data, result_array
+
+        # create raw data from file
+        # TODO: do raw data word creation automatically
+        raw_data = []
+        raw_data, result_array = create_raw_data()
+
+        # create result file
+        with tb.open_file(interpreted_result_file, 'w') as out_file_h5:
+            hit_table = out_file_h5.create_table(where=out_file_h5.root,
+                                                 name='Hits',
+                                                 description=result_dtype,
+                                                 title='hit_data',
+                                                 filters=tb.Filters(complib='blosc', complevel=5, fletcher32=False))
+            hit_table.append(result_array)
+
+        # write raw_data to file
+        filter_raw_data = tb.Filters(complib='blosc', complevel=5, fletcher32=False)
+        with tb.open_file(test_data_file, 'w') as out_file_h5:
+            raw_data_earray = out_file_h5.create_earray(out_file_h5.root,
+                                                        name='raw_data',
+                                                        atom=tb.UIntAtom(),
+                                                        shape=(0,), title='raw_data',
+                                                        filters=filter_raw_data)
+            raw_data_earray.append(raw_data)
+
+        with data_interpreter.DataInterpreter(raw_data_file=test_data_file, trigger_data_format=2, create_pdf=True, chunk_size=1000000) as raw_data_analysis:
             raw_data_analysis.create_hit_table = True
             raw_data_analysis.interpret_word_table()
-            # raw_data_analysis.interpret_hit_table()
 
-        with tb.open_file(os.path.join(tests_data_folder, 'anemone_raw_data_interpreted_orig.h5'), 'r') as in_file_h5_orig:
-            data_orig = in_file_h5_orig.root.Hits[:]
+        # Open result and interpreter file in order to compare them. Compare only Hit fields
+        with tb.open_file(interpreted_result_file, 'r') as in_file_h5:
+                    data_orig = in_file_h5.root.Hits[:]
 
-        with tb.open_file(os.path.join(tests_data_folder, 'anemone_raw_data_interpreted.h5'), 'r') as in_file_h5:
-            data = in_file_h5.root.Hits[:]
+        with tb.open_file(interpreted_test_file, 'r') as in_file_h5:
+                    data_inter = in_file_h5.root.Hits[:]
 
-        # Hits are sorted differently per plane and field names are completely different, thus loop and selection is needed
-        for plane in range(1, 7):
-            ts_orig = data_orig['timestamp'][data_orig['plane'] == plane]
-            frame_orig = data_orig['mframe'][data_orig['plane'] == plane]
-            trg_number_orig = data_orig['tlu'][data_orig['plane'] == plane]
-            column_orig = data_orig['x'][data_orig['plane'] == plane]
-            row_orig = data_orig['y'][data_orig['plane'] == plane]
-            ts = data['time_stamp'][data['plane'] == plane]
-            frame = data['frame'][data['plane'] == plane]
-            trg_number = data['trigger_number'][data['plane'] == plane]
-            column = data['column'][data['plane'] == plane]
-            row = data['row'][data['plane'] == plane]
-            np.testing.assert_array_equal(ts_orig, ts, err_msg='Timestamp array mismatch for plane: %d' % (plane))
-            np.testing.assert_array_equal(frame_orig, frame, err_msg='Frame array mismatch for plane: %d' % (plane))
-            np.testing.assert_array_equal(trg_number_orig, trg_number, err_msg='Trigger Number array mismatch for plane: %d' % (plane))
-            np.testing.assert_array_equal(column_orig, column, err_msg='Column array mismatch for plane: %d' % (plane))
-            np.testing.assert_array_equal(row_orig, row, err_msg='Row array mismatch for plane: %d' % (plane))
-
-        # Test some columns of interpreted event table
-        with tb.open_file(os.path.join(tests_data_folder, 'anemone_raw_data_interpreted_event_build_plane_1_orig.h5'), 'r') as in_file_h5_orig:
-            data_orig = in_file_h5_orig.root.Hits[:]
-            event_number_orig = data_orig['event_number']
-            trg_number_orig = data_orig['trigger_number']
-            m26_timestamp_orig = data_orig['m_timestamp']
-
-        with tb.open_file(os.path.join(tests_data_folder, 'anemone_raw_data_interpreted_event_build_plane_1.h5'), 'r') as in_file_h5:
-            data = in_file_h5.root.Hits[:]
-            event_number = data['event_number']
-            trg_number = data['trigger_number']
-            m26_timestamp = data['m26_timestamp']
-
-        np.testing.assert_array_equal(event_number_orig, event_number, err_msg='Event Number array mismatch')
-        np.testing.assert_array_equal(trg_number_orig, trg_number, err_msg='Trigger Number array mismatch')
-        np.testing.assert_array_equal(m26_timestamp_orig, m26_timestamp, err_msg='M26 Timestamp array mismatch')
-
-#         # Test event table aligned to time reference
-#         checks_passed, error_msg = test_tools.compare_h5_files(first_file=tests_data_folder + r'/anemone_raw_data_interpreted_event_build_aligned_plane_1_orig.h5',
-#                                                                second_file=tests_data_folder + r'/anemone_raw_data_interpreted_event_build_aligned_plane_1.h5')
-#         self.assertTrue(checks_passed, error_msg)
-
-        # Test some columns of interpreted event table
-        with tb.open_file(os.path.join(tests_data_folder, 'anemone_raw_data_interpreted_event_build_aligned_plane_1_orig.h5'), 'r') as in_file_h5_orig:
-            data_orig = in_file_h5_orig.root.Hits[:]
-            event_number_orig = data_orig['event_number']
-
-        with tb.open_file(os.path.join(tests_data_folder, 'anemone_raw_data_interpreted_event_build_aligned_plane_1.h5'), 'r') as in_file_h5:
-            data = in_file_h5.root.Hits[:]
-            event_number = data['event_number']
-
-        np.testing.assert_array_equal(event_number_orig, event_number, err_msg='Event Number array mismatch')
+        # Compare with result
+        for key in data_orig.dtype.names:
+            if key == 'event_status':
+                continue  # skip event status
+            np.testing.assert_array_equal(data_orig['%s' % key], data_inter['%s' % key], err_msg='%s array mismatch' % key)
 
 
 if __name__ == '__main__':
