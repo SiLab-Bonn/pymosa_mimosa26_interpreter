@@ -24,7 +24,7 @@ import numpy as np
 
 FRAME_UNIT_CYCLE = 4608  # = 115.2 * 40, time for one frame in units of 40 MHz clock cylces
 ROW_UNIT_CYCLE = 8  # = 115.2 * 40 / 576, time to read one row in units of 40 MHz clock cycles
-TIMING_OFFSET = 2170  # Correct for offset between M26 40 MHz clock and 40 MHz from R/O system. Offset determined by maximum correlation between the time reference and Mimosa26 telescope.
+TIMING_OFFSET = -112  # Correct for offset between M26 40 MHz clock and 40 MHz from R/O system. Offset determined by maximum correlation between the time reference and Mimosa26 telescope.
 
 hits_dtype = np.dtype([
     ('plane', '<u1'),
@@ -204,7 +204,7 @@ class RawDataInterpreter(object):
         self.m26_frame_status = np.zeros(shape=(6, ), dtype=np.uint32)  # The status flags for the actual frames
         self.last_completed_m26_frame_ids = np.full(shape=6, dtype=np.int64, fill_value=-1)  # The status if the frame is complete for the actual frame
         # Per event variables
-        self.event_number = np.int64(0)  # The event number of the actual trigger, event number starts at 1
+        self.event_number = np.int64(-1)  # The event number of the actual trigger, event number starts at 0
         self.trigger_number = np.int64(-1)  # The trigger number of the actual trigger
         self.trigger_timestamp = np.int64(0)  # The trigger timestamp of the actual trigger
 
