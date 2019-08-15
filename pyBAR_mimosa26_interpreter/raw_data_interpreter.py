@@ -22,9 +22,13 @@ from numba import njit
 import numpy as np
 
 
-FRAME_UNIT_CYCLE = 4608  # = 115.2 * 40, time for one frame in units of 40 MHz clock cylces
-ROW_UNIT_CYCLE = 8  # = 115.2 * 40 / 576, time to read one row in units of 40 MHz clock cycles
+MIMOSA_FRAME_CYCLE = 115.2  # us
+MIMOSA_FREQ = 40  # MHz
+N_ROWS_MIMOSA = 576  # Number of rows
+FRAME_UNIT_CYCLE = int(MIMOSA_FRAME_CYCLE * MIMOSA_FREQ)  # = 4608, time for one frame in units of 40 MHz clock cylces
+ROW_UNIT_CYCLE = int(MIMOSA_FRAME_CYCLE * MIMOSA_FREQ / N_ROWS_MIMOSA)  # = 8, time to read one row in units of 40 MHz clock cycles
 TIMING_OFFSET = -112  # Correct for offset between M26 40 MHz clock and 40 MHz from R/O system. Offset determined by maximum correlation between the time reference and Mimosa26 telescope.
+MAX_BUFFER_TIME_SLIP = 5  # max. time for storing hits in buffer before they get removed if no trigger appears
 
 hits_dtype = np.dtype([
     ('plane', '<u1'),
@@ -405,8 +409,18 @@ def _interpret_raw_data(raw_data, trigger_data, trigger_data_index, telescope_da
                             telescope_data_index += 1
                             # extend telescope data array if neccessary
                             if telescope_data_index >= telescope_data.shape[0]:
+                                # remove old hit data from array for each plane individually. Prevents the case that telescope data array gets too big in case
+                                # time until next trigger is very large, since telescope data has to be buffered until next trigger.
+                                select = (telescope_data['plane'] == plane_id)
+                                select &= (telescope_data['time_stamp'] < (m26_timestamps[plane_id] - MAX_BUFFER_TIME_SLIP * MIMOSA_FREQ * 10**6))
+                                count_outdated = np.sum(select)
+                                if count_outdated:
+                                    telescope_data = telescope_data[~select]
+                                    telescope_data_index = telescope_data_index - count_outdated
+                                # extend telescope data array if neccessary
                                 telescope_data_tmp = np.zeros(shape=max(1, int(raw_data.shape[0] / 2)), dtype=telescope_data_dtype)
                                 telescope_data = np.concatenate((telescope_data, telescope_data_tmp))
+
                             # Store hits
                             telescope_data[telescope_data_index]['plane'] = plane_id
                             telescope_data[telescope_data_index]['time_stamp'] = m26_timestamps[plane_id]

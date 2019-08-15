@@ -138,6 +138,7 @@ class DataInterpreter(object):
 
                     if self.create_hit_table:
                         hit_table.append(hits)
+                        hit_table.flush()
 
                     if self.create_occupancy_hist:
                         occupancy_hist += fill_occupancy_hist(hits)
