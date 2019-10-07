@@ -505,7 +505,7 @@ def _interpret_raw_data(raw_data, trigger_data, trigger_data_index, telescope_da
             trigger_data[trigger_data_index]['trigger_time_stamp'] = trigger_timestamp  # Timestamp of TLU word
             trigger_data[trigger_data_index]['trigger_status'] = trigger_status  # Trigger status
         else:  # Raw data contains unknown word, neither M26 nor TLU word
-            for actual_plane_id in range(6):
+            for actual_plane_id in active_m26_planes:
                 m26_data_loss[actual_plane_id] = True
 
     # Set the status bits for priviously incomplete frames
@@ -578,7 +578,7 @@ def _build_events(trigger_data, trigger_data_index, telescope_data, telescope_da
                     finished_event[telescope_data[curr_telescope_data_index]['plane']] = True
                     if np.all(finished_event):
                         latest_trigger_data_index = curr_trigger_data_index
-                        for current_index in range(6):
+                        for current_index in active_m26_planes:
                             last_event_trigger_data_indices[current_index] = finished_telescope_data_indices[current_index]
                         hits_index = curr_hits_index
                         # Set event status for complete event

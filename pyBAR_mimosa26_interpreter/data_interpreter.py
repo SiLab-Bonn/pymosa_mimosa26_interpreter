@@ -171,7 +171,7 @@ class DataInterpreter(object):
                     fill_event_status_hist(self.event_status_hist, hits)
 
                 # Add histograms to data file and create plots
-                for plane in range(6):
+                for plane in self.active_m26_planes:
                     # store occupancy map for all Mimosa26 planes
                     logging.info('Store histograms and create plots for plane %d', plane)
 
