@@ -28,7 +28,7 @@ class DataInterpreter(object):
     ''' Class to provide an easy to use interface to encapsulate the interpretation and event building process.
     '''
 
-    def __init__(self, raw_data_file, analyzed_data_file=None, trigger_data_format=2, add_missing_events=False, timing_offset=None, active_m26_planes=[1, 2, 3, 4, 5, 6], create_pdf=False, chunk_size=1000000):
+    def __init__(self, raw_data_file, analyzed_data_file=None, trigger_data_format=2, add_missing_events=False, timing_offset=None, analyze_m26_header_ids=[1, 2, 3, 4, 5, 6], create_pdf=False, chunk_size=1000000):
         '''
         Parameters
         ----------
@@ -48,7 +48,7 @@ class DataInterpreter(object):
         timing_offset : int
             Offset between Mimosa26 40 MHz clock and 40 MHz from R/O system. If None, use default value which was obtained
             by maximizing correlation between Mimosa26 telescope and time reference.
-        active_m26_planes : list
+        analyze_m26_header_ids : list
             List of Mimosa26 plane header IDs that will be interpreted. Default: [1, 2, 3, 4, 5, 6].
         create_pdf : bool
             If True, create PDF containing several ouput plots.
@@ -78,12 +78,12 @@ class DataInterpreter(object):
             else:
                 logging.info('Opening output PDF file: %s' % output_pdf_filename)
 
-        self.active_m26_planes = active_m26_planes
-        self.plane_id_to_index = [-1] * (max(self.active_m26_planes) + 1)
-        for plane_index, plane_id in enumerate(self.active_m26_planes):
+        self.analyze_m26_header_ids = analyze_m26_header_ids
+        self.plane_id_to_index = [-1] * (max(self.analyze_m26_header_ids) + 1)
+        for plane_index, plane_id in enumerate(self.analyze_m26_header_ids):
             self.plane_id_to_index[plane_id] = plane_index
-        logging.info('Interpreting Mimosa26 planes with header IDs: %s' % ', '.join([str(id) for id in self.active_m26_planes]))
-        self._raw_data_interpreter = raw_data_interpreter.RawDataInterpreter(active_m26_planes=self.active_m26_planes)
+        logging.info('Interpreting Mimosa26 planes with header IDs: %s' % ', '.join([str(id) for id in self.analyze_m26_header_ids]))
+        self._raw_data_interpreter = raw_data_interpreter.RawDataInterpreter(analyze_m26_header_ids=self.analyze_m26_header_ids)
         if add_missing_events is not None:
             self._raw_data_interpreter.add_missing_events = add_missing_events
         if timing_offset is not None:
@@ -147,10 +147,10 @@ class DataInterpreter(object):
                             fletcher32=False))
 
                 if self.create_occupancy_hist:
-                    occupancy_hist = np.zeros(shape=(len(self.active_m26_planes), 1152, 576), dtype=np.int32)  # for each plane
+                    occupancy_hist = np.zeros(shape=(len(self.analyze_m26_header_ids), 1152, 576), dtype=np.int32)  # for each plane
 
                 if self.create_error_hist:
-                    event_status_hist = np.zeros(shape=(len(self.active_m26_planes), 32), dtype=np.int32)  # for TLU and each plane
+                    event_status_hist = np.zeros(shape=(len(self.analyze_m26_header_ids), 32), dtype=np.int32)  # for TLU and each plane
 
                 logging.info("Interpreting raw data...")
                 for i in tqdm(range(0, in_file_h5.root.raw_data.shape[0], self.chunk_size)):  # Loop over all words in the actual raw data file in chunks
@@ -174,7 +174,7 @@ class DataInterpreter(object):
                     fill_event_status_hist(event_status_hist, hits, self.plane_id_to_index)
 
                 # Add histograms to data file and create plots
-                for plane_index, plane in enumerate(self.active_m26_planes):
+                for plane_index, plane in enumerate(self.analyze_m26_header_ids):
                     # store occupancy map for all Mimosa26 planes
                     logging.info('Store histograms %sfor Mimosa26 plane with header ID %d.' % ('and create plots ' if self.output_pdf else '', plane))
 

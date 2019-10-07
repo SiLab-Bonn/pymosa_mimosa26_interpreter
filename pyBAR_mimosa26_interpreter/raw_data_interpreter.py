@@ -185,16 +185,16 @@ def get_trigger_number(word, trigger_data_format):  # Get trigger number of TLU 
 class RawDataInterpreter(object):
     ''' Class to convert the raw data chunks to hits'''
 
-    def __init__(self, active_m26_planes=[1, 2, 3, 4, 5, 6]):
+    def __init__(self, analyze_m26_header_ids=[1, 2, 3, 4, 5, 6]):
         '''
         Parameters:
         -----------
-        active_m26_planes : list
+        analyze_m26_header_ids : list
             List of Mimosa26 plane header IDs that will be interpreted. Default: [1, 2, 3, 4, 5, 6].
         '''
-        self.active_m26_planes = active_m26_planes
-        self.plane_id_to_index = [-1] * (max(self.active_m26_planes) + 1)
-        for plane_index, plane_id in enumerate(self.active_m26_planes):
+        self.analyze_m26_header_ids = analyze_m26_header_ids
+        self.plane_id_to_index = [-1] * (max(self.analyze_m26_header_ids) + 1)
+        for plane_index, plane_id in enumerate(self.analyze_m26_header_ids):
             self.plane_id_to_index[plane_id] = plane_index
         self.reset()
 
@@ -207,16 +207,16 @@ class RawDataInterpreter(object):
 
         # Raw data interpreter
         # Per frame variables
-        self.m26_frame_ids = np.zeros(shape=len(self.active_m26_planes), dtype=np.int64)  # The Mimosa26 frame ID of the actual frame
-        self.m26_frame_length = np.zeros(shape=len(self.active_m26_planes), dtype=np.uint32)  # The number of "useful" data words for the actual frame
-        self.m26_data_loss = np.ones(len(self.active_m26_planes), dtype=np.bool)  # The data loss status for the actual frame
-        self.m26_word_index = np.zeros(shape=len(self.active_m26_planes), dtype=np.uint32)  # The word index per device of the actual frame
-        self.m26_timestamps = np.zeros(shape=len(self.active_m26_planes), dtype=np.int64)  # The timestamp for each plane (in units of 40 MHz)
-        self.last_m26_timestamps = np.zeros(shape=len(self.active_m26_planes), dtype=np.int64)
-        self.m26_n_words = np.zeros(shape=len(self.active_m26_planes), dtype=np.uint32)  # The number of words containing column / row info
-        self.m26_rows = np.zeros(shape=len(self.active_m26_planes), dtype=np.uint32)  # The actual readout row (rolling shutter)
-        self.m26_frame_status = np.zeros(shape=len(self.active_m26_planes), dtype=np.uint32)  # The status flags for the actual frames
-        self.last_completed_m26_frame_ids = np.full(shape=len(self.active_m26_planes), dtype=np.int64, fill_value=-1)  # The status if the frame is complete for the actual frame
+        self.m26_frame_ids = np.zeros(shape=len(self.analyze_m26_header_ids), dtype=np.int64)  # The Mimosa26 frame ID of the actual frame
+        self.m26_frame_length = np.zeros(shape=len(self.analyze_m26_header_ids), dtype=np.uint32)  # The number of "useful" data words for the actual frame
+        self.m26_data_loss = np.ones(len(self.analyze_m26_header_ids), dtype=np.bool)  # The data loss status for the actual frame
+        self.m26_word_index = np.zeros(shape=len(self.analyze_m26_header_ids), dtype=np.uint32)  # The word index per device of the actual frame
+        self.m26_timestamps = np.zeros(shape=len(self.analyze_m26_header_ids), dtype=np.int64)  # The timestamp for each plane (in units of 40 MHz)
+        self.last_m26_timestamps = np.zeros(shape=len(self.analyze_m26_header_ids), dtype=np.int64)
+        self.m26_n_words = np.zeros(shape=len(self.analyze_m26_header_ids), dtype=np.uint32)  # The number of words containing column / row info
+        self.m26_rows = np.zeros(shape=len(self.analyze_m26_header_ids), dtype=np.uint32)  # The actual readout row (rolling shutter)
+        self.m26_frame_status = np.zeros(shape=len(self.analyze_m26_header_ids), dtype=np.uint32)  # The status flags for the actual frames
+        self.last_completed_m26_frame_ids = np.full(shape=len(self.analyze_m26_header_ids), dtype=np.int64, fill_value=-1)  # The status if the frame is complete for the actual frame
         # Per event variables
         self.event_number = np.int64(-1)  # The event number of the actual trigger, event number starts at 0
         self.trigger_number = np.int64(-1)  # The trigger number of the actual trigger
@@ -282,7 +282,7 @@ class RawDataInterpreter(object):
             trigger_timestamp=self.trigger_timestamp,
             add_missing_events=self.add_missing_events,
             build_all_events=build_all_events,
-            active_m26_planes=self.active_m26_planes,
+            analyze_m26_header_ids=self.analyze_m26_header_ids,
             plane_id_to_index=self.plane_id_to_index)
         # Build events
         self.trigger_data, self.trigger_data_index, self.telescope_data, self.telescope_data_index, self.hits, self.hits_index = _build_events(
@@ -295,7 +295,7 @@ class RawDataInterpreter(object):
             last_completed_m26_frame_ids=self.last_completed_m26_frame_ids,
             timing_offset=self.timing_offset,
             build_all_events=build_all_events,
-            active_m26_planes=self.active_m26_planes,
+            analyze_m26_header_ids=self.analyze_m26_header_ids,
             plane_id_to_index=self.plane_id_to_index)
         # Create a copy of the hits array that is returned
         hits = self.hits[:self.hits_index + 1].copy()
@@ -305,7 +305,7 @@ class RawDataInterpreter(object):
 
 
 @njit(locals={'trigger_data_index': numba.int64, 'telescope_data_index': numba.int64, 'trigger_status': numba.uint32, 'last_trigger_number': numba.int64, 'last_trigger_timestamp': numba.int64, 'n_missing_events': numba.uint32})
-def _interpret_raw_data(raw_data, trigger_data, trigger_data_index, telescope_data, telescope_data_index, m26_frame_ids, m26_frame_length, m26_data_loss, m26_word_index, m26_timestamps, last_m26_timestamps, m26_n_words, m26_rows, m26_frame_status, last_completed_m26_frame_ids, event_number, trigger_number, trigger_timestamp, add_missing_events, build_all_events, active_m26_planes, plane_id_to_index):
+def _interpret_raw_data(raw_data, trigger_data, trigger_data_index, telescope_data, telescope_data_index, m26_frame_ids, m26_frame_length, m26_data_loss, m26_word_index, m26_timestamps, last_m26_timestamps, m26_n_words, m26_rows, m26_frame_status, last_completed_m26_frame_ids, event_number, trigger_number, trigger_timestamp, add_missing_events, build_all_events, analyze_m26_header_ids, plane_id_to_index):
     ''' This function is interpreting the Mimosa26 telescope raw data and creates temporary trigger and telescope data arrays.
     The interpreter checks for trigger and Mimosa26 data errors.
 
@@ -320,7 +320,7 @@ def _interpret_raw_data(raw_data, trigger_data, trigger_data_index, telescope_da
         if is_mimosa_data(raw_data_word):  # Check if word is from Mimosa26.
             # Check to which plane the data belongs
             plane_id = get_plane_number(raw_data_word)  # The actual_plane if the actual word belongs to (0 to 5)
-            if plane_id not in active_m26_planes:  # Do not interpret data of planes which should be skipped
+            if plane_id not in analyze_m26_header_ids:  # Do not interpret data of planes which should be skipped
                 continue
             plane_index = plane_id_to_index[plane_id]
             # In the following, interpretation of the raw data words of the actual plane
@@ -451,7 +451,7 @@ def _interpret_raw_data(raw_data, trigger_data, trigger_data_index, telescope_da
             # Get latest telescope timestamp and set trigger timestamp
             last_trigger_timestamp = trigger_timestamp
             # Get largest M26 timestamp
-            for tmp_plane_index, _ in enumerate(active_m26_planes):
+            for tmp_plane_index, _ in enumerate(analyze_m26_header_ids):
                 if last_m26_timestamps[tmp_plane_index] > trigger_timestamp:
                     trigger_timestamp = last_m26_timestamps[tmp_plane_index]
             # Calculating 63bit timestamp from 15bit trigger timestamp
@@ -516,12 +516,12 @@ def _interpret_raw_data(raw_data, trigger_data, trigger_data_index, telescope_da
             trigger_data[trigger_data_index]['trigger_time_stamp'] = trigger_timestamp  # Timestamp of TLU word
             trigger_data[trigger_data_index]['trigger_status'] = trigger_status  # Trigger status
         else:  # Raw data contains unknown word, neither M26 nor TLU word
-            for tmp_plane_index, _ in enumerate(active_m26_planes):
+            for tmp_plane_index, _ in enumerate(analyze_m26_header_ids):
                 m26_data_loss[tmp_plane_index] = True
 
     # Set the status bits for priviously incomplete frames
     if build_all_events:
-        for tmp_plane_index, tmp_plane_id in enumerate(active_m26_planes):
+        for tmp_plane_index, tmp_plane_id in enumerate(analyze_m26_header_ids):
             index = telescope_data_index
             while index >= 0:
                 if telescope_data[index]['plane'] == tmp_plane_id:
@@ -535,7 +535,7 @@ def _interpret_raw_data(raw_data, trigger_data, trigger_data_index, telescope_da
 
 
 @njit(locals={'hits_index': numba.int64, 'curr_trigger_data_index': numba.int64, 'curr_telescope_data_index': numba.int64})
-def _build_events(trigger_data, trigger_data_index, telescope_data, telescope_data_index, hits, hits_index, last_completed_m26_frame_ids, timing_offset, build_all_events, active_m26_planes, plane_id_to_index):
+def _build_events(trigger_data, trigger_data_index, telescope_data, telescope_data_index, hits, hits_index, last_completed_m26_frame_ids, timing_offset, build_all_events, analyze_m26_header_ids, plane_id_to_index):
     ''' This function is builds events from the temporary trigger and telescope data arrays.
 
     Parameters:
@@ -543,10 +543,10 @@ def _build_events(trigger_data, trigger_data_index, telescope_data, telescope_da
     TBD
     '''
     latest_trigger_data_index = -1
-    finished_telescope_data_indices = np.full(shape=len(active_m26_planes), dtype=np.int64, fill_value=-1)
-    last_event_trigger_data_indices = np.full(shape=len(active_m26_planes), dtype=np.int64, fill_value=-1)
-    finished_event = np.ones(shape=len(active_m26_planes), dtype=np.bool_)
-    curr_event_status = np.zeros(shape=len(active_m26_planes), dtype=np.uint32)
+    finished_telescope_data_indices = np.full(shape=len(analyze_m26_header_ids), dtype=np.int64, fill_value=-1)
+    last_event_trigger_data_indices = np.full(shape=len(analyze_m26_header_ids), dtype=np.int64, fill_value=-1)
+    finished_event = np.ones(shape=len(analyze_m26_header_ids), dtype=np.bool_)
+    curr_event_status = np.zeros(shape=len(analyze_m26_header_ids), dtype=np.uint32)
 
     curr_trigger_data_index = 0
     curr_hits_index = hits_index
@@ -558,7 +558,7 @@ def _build_events(trigger_data, trigger_data_index, telescope_data, telescope_da
         trigger_status = trigger_data[curr_trigger_data_index]['trigger_status']
         curr_telescope_data_index = np.min(finished_telescope_data_indices) + 1
         # Reset status
-        for tmp_plane_index, _ in enumerate(active_m26_planes):
+        for tmp_plane_index, _ in enumerate(analyze_m26_header_ids):
             finished_event[tmp_plane_index] = False
             curr_event_status[tmp_plane_index] = 0
         while curr_telescope_data_index <= telescope_data_index:
@@ -590,7 +590,7 @@ def _build_events(trigger_data, trigger_data_index, telescope_data, telescope_da
                     finished_event[plane_id_to_index[telescope_data[curr_telescope_data_index]['plane']]] = True
                     if np.all(finished_event):
                         latest_trigger_data_index = curr_trigger_data_index
-                        for tmp_plane_index, _ in enumerate(active_m26_planes):
+                        for tmp_plane_index, _ in enumerate(analyze_m26_header_ids):
                             last_event_trigger_data_indices[tmp_plane_index] = finished_telescope_data_indices[tmp_plane_index]
                         hits_index = curr_hits_index
                         # Set event status for complete event
@@ -613,7 +613,7 @@ def _build_events(trigger_data, trigger_data_index, telescope_data, telescope_da
                 elif hits[index]['event_number'] < trigger_event_number:
                     break
                 index -= 1
-            for tmp_plane_index, _ in enumerate(active_m26_planes):
+            for tmp_plane_index, _ in enumerate(analyze_m26_header_ids):
                 finished_event[tmp_plane_index] = True
         curr_trigger_data_index += 1
 
