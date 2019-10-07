@@ -8,15 +8,10 @@ platform:
   - x86
   - x64
 
-init:
-  - "ECHO %PYTHON%"
-  - ps: Start-FileDownload 'http://download.microsoft.com/download/7/9/6/796EF2E4-801B-4FC4-AB28-B59FBF6D907B/VCForPython27.msi' C:\VCForPython27.msi; echo "Done"
-  - cmd: msiexec /i C:\VCForPython27.msi /quiet /qn
-
 install:
   # Miniconda setup + necessary external packages
   - set PATH=C:\Miniconda;C:\Miniconda\Scripts;%PATH%  # miniconda is already installed on appveyor: https://github.com/appveyor/ci/issues/359
-  - conda install --yes cython mock nose cython numpy pytables
+  - conda install --yes mock nose cython numpy pytables
   - pip install -r requirements.txt
   - python.exe setup.py develop
 
