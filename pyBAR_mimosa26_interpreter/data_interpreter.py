@@ -22,7 +22,7 @@ class DataInterpreter(object):
     ''' Class to provide an easy to use interface to encapsulate the interpretation and event building process.
     '''
 
-    def __init__(self, raw_data_file, analyzed_data_file=None, create_pdf=False, trigger_data_format=2, add_missing_events=None, timing_offset=None, chunk_size=1000000):
+    def __init__(self, raw_data_file, analyzed_data_file=None, trigger_data_format=2, add_missing_events=False, timing_offset=None, active_m26_planes=range(6), create_pdf=False, chunk_size=1000000):
         '''
         Parameters
         ----------
@@ -39,6 +39,15 @@ class DataInterpreter(object):
             1: TLU word is timestamp (not supported)
             2: TLU word is 15 bit timestamp + 16 bit trigger number
             Only trigger data format 2 is supported, since the event building requires a trigger timestamp in order to work reliably.
+        add_missing_events : boolean
+            If True, add (silently) missing events (due to missing trigger words). Default is False.
+        timing_offset : int
+            Offset between M26 40 MHz clock and 40 MHz from R/O system. If None, use default value which was obtained
+            by maximizing correlation between M26 telescope and time reference.
+        active_m26_planes : list
+            List of M26 planes which will be interpreted. Default: Interpretation of all planes.
+        create_pdf : bool
+            If True create PDF containing several plots.
         chunk_size : integer
             Chunk size of the data when reading from file. The larger the chunk size, the more RAM is consumed.
         '''
@@ -74,6 +83,9 @@ class DataInterpreter(object):
             raise ValueError('Trigger data format different than 2 is not yet supported. For event building a trigger timestamp is required!')
 
         self.set_standard_settings()
+
+        self.active_m26_planes = active_m26_planes
+        logging.info('Interpreting the following M26 planes: %s', active_m26_planes)
 
     def set_standard_settings(self):
         self.create_occupancy_hist = False
@@ -134,7 +146,7 @@ class DataInterpreter(object):
                 logging.info("Interpreting raw data...")
                 for i in tqdm(range(0, in_file_h5.root.raw_data.shape[0], self.chunk_size)):  # Loop over all words in the actual raw data file in chunks
                     raw_data_chunk = in_file_h5.root.raw_data.read(i, i + self.chunk_size)
-                    hits = self._raw_data_interpreter.interpret_raw_data(raw_data=raw_data_chunk)
+                    hits = self._raw_data_interpreter.interpret_raw_data(raw_data=raw_data_chunk, active_m26_planes=self.active_m26_planes)
 
                     if self.create_hit_table:
                         hit_table.append(hits)
@@ -147,7 +159,7 @@ class DataInterpreter(object):
                         fill_event_status_hist(self.event_status_hist, hits)
 
                 # get last incomplete events
-                hits = self._raw_data_interpreter.interpret_raw_data(raw_data=None, build_all_events=True)
+                hits = self._raw_data_interpreter.interpret_raw_data(raw_data=None, build_all_events=True, active_m26_planes=self.active_m26_planes)
 
                 if self.create_hit_table:
                     hit_table.append(hits)

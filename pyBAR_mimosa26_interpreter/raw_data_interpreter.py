@@ -236,7 +236,7 @@ class RawDataInterpreter(object):
     def timing_offset(self, value):
         self._timing_offset = int(value)
 
-    def interpret_raw_data(self, raw_data=None, build_all_events=False):
+    def interpret_raw_data(self, raw_data=None, build_all_events=False, active_m26_planes=range(6)):
         ''' Converting the raw data array to a hit array.
         The is the only function that needs to be called to convert the raw data.
 
@@ -247,6 +247,8 @@ class RawDataInterpreter(object):
         build_all_events : bool
             If True, build all events from the remaining trigger_data and telescope_data_array.
             Use this only after the last raw data chunk to receive the the remaining events in the buffers.
+        active_m26_planes : list
+            List of M26 planes which will be interpreted. Default: Interpretation of all planes.
         '''
         if raw_data is None:
             raw_data = np.zeros(shape=0, dtype=np.uint32)
@@ -271,7 +273,8 @@ class RawDataInterpreter(object):
             trigger_number=self.trigger_number,
             trigger_timestamp=self.trigger_timestamp,
             add_missing_events=self.add_missing_events,
-            build_all_events=build_all_events)
+            build_all_events=build_all_events,
+            active_m26_planes=active_m26_planes)
         # Build events
         self.trigger_data, self.trigger_data_index, self.telescope_data, self.telescope_data_index, self.hits, self.hits_index = _build_events(
             trigger_data=self.trigger_data,
@@ -282,7 +285,8 @@ class RawDataInterpreter(object):
             hits_index=self.hits_index,
             last_completed_m26_frame_ids=self.last_completed_m26_frame_ids,
             timing_offset=self.timing_offset,
-            build_all_events=build_all_events)
+            build_all_events=build_all_events,
+            active_m26_planes=active_m26_planes)
         # Create a copy of the hits array that is returned
         hits = self.hits[:self.hits_index + 1].copy()
         self.hits_index -= (self.hits_index + 1)
@@ -291,7 +295,7 @@ class RawDataInterpreter(object):
 
 
 @njit(locals={'trigger_data_index': numba.int64, 'telescope_data_index': numba.int64, 'trigger_status': numba.uint32, 'last_trigger_number': numba.int64, 'last_trigger_timestamp': numba.int64, 'n_missing_events': numba.uint32})
-def _interpret_raw_data(raw_data, trigger_data, trigger_data_index, telescope_data, telescope_data_index, m26_frame_ids, m26_frame_length, m26_data_loss, m26_word_index, m26_timestamps, last_m26_timestamps, m26_n_words, m26_rows, m26_frame_status, last_completed_m26_frame_ids, event_number, trigger_number, trigger_timestamp, add_missing_events, build_all_events):
+def _interpret_raw_data(raw_data, trigger_data, trigger_data_index, telescope_data, telescope_data_index, m26_frame_ids, m26_frame_length, m26_data_loss, m26_word_index, m26_timestamps, last_m26_timestamps, m26_n_words, m26_rows, m26_frame_status, last_completed_m26_frame_ids, event_number, trigger_number, trigger_timestamp, add_missing_events, build_all_events, active_m26_planes):
     ''' This function is interpreting the Mimosa26 telescope raw data and creates temporary trigger and telescope data arrays.
     The interpreter checks for trigger and Mimosa26 data errors.
 
@@ -306,6 +310,8 @@ def _interpret_raw_data(raw_data, trigger_data, trigger_data_index, telescope_da
         if is_mimosa_data(raw_data_word):  # Check if word is from Mimosa26.
             # Check to which plane the data belongs
             plane_id = get_plane_number(raw_data_word) - 1  # The actual_plane if the actual word belongs to (0 to 5)
+            if plane_id not in active_m26_planes:  # Do not interpret data of planes which should be skipped
+                continue
             # In the following, interpretation of the raw data words of the actual plane
             # Check for data loss bit set by the M26 RX FSM
             if is_data_loss(raw_data_word):
@@ -434,7 +440,7 @@ def _interpret_raw_data(raw_data, trigger_data, trigger_data_index, telescope_da
             # Get latest telescope timestamp and set trigger timestamp
             last_trigger_timestamp = trigger_timestamp
             # Get largest M26 timestamp
-            for actual_plane_id in range(6):
+            for actual_plane_id in active_m26_planes:
                 if last_m26_timestamps[actual_plane_id] > trigger_timestamp:
                     trigger_timestamp = last_m26_timestamps[actual_plane_id]
             # Calculating 63bit timestamp from 15bit trigger timestamp
@@ -504,7 +510,7 @@ def _interpret_raw_data(raw_data, trigger_data, trigger_data_index, telescope_da
 
     # Set the status bits for priviously incomplete frames
     if build_all_events:
-        for curr_plane_id in range(6):
+        for curr_plane_id in active_m26_planes:
             index = telescope_data_index
             while index >= 0:
                 if telescope_data[index]['plane'] == curr_plane_id:
@@ -518,7 +524,7 @@ def _interpret_raw_data(raw_data, trigger_data, trigger_data_index, telescope_da
 
 
 @njit(locals={'hits_index': numba.int64, 'curr_trigger_data_index': numba.int64, 'curr_telescope_data_index': numba.int64})
-def _build_events(trigger_data, trigger_data_index, telescope_data, telescope_data_index, hits, hits_index, last_completed_m26_frame_ids, timing_offset, build_all_events):
+def _build_events(trigger_data, trigger_data_index, telescope_data, telescope_data_index, hits, hits_index, last_completed_m26_frame_ids, timing_offset, build_all_events, active_m26_planes):
     ''' This function is builds events from the temporary trigger and telescope data arrays.
 
     Parameters:
@@ -539,10 +545,9 @@ def _build_events(trigger_data, trigger_data_index, telescope_data, telescope_da
         trigger_number = trigger_data[curr_trigger_data_index]['trigger_number']
         trigger_timestamp = trigger_data[curr_trigger_data_index]['trigger_time_stamp']
         trigger_status = trigger_data[curr_trigger_data_index]['trigger_status']
-
-        curr_telescope_data_index = np.min(finished_telescope_data_indices) + 1
+        curr_telescope_data_index = np.min(finished_telescope_data_indices[np.array(active_m26_planes)]) + 1
         # Reset status
-        for current_index in range(6):
+        for current_index in active_m26_planes:
             finished_event[current_index] = False
             curr_event_status[current_index] = 0
         while curr_telescope_data_index <= telescope_data_index:
@@ -596,14 +601,14 @@ def _build_events(trigger_data, trigger_data_index, telescope_data, telescope_da
                 elif hits[index]['event_number'] < trigger_event_number:
                     break
                 index -= 1
-            for current_index in range(6):
+            for current_index in active_m26_planes:
                 finished_event[current_index] = True
         curr_trigger_data_index += 1
 
     if build_all_events:
         telescope_data_start_index = telescope_data_index + 1
     else:
-        telescope_data_start_index = np.min(last_event_trigger_data_indices) + 1
+        telescope_data_start_index = np.min(last_event_trigger_data_indices[np.array(active_m26_planes)]) + 1
     telescope_data = telescope_data[telescope_data_start_index:]
     telescope_data_index -= telescope_data_start_index
     if build_all_events:
