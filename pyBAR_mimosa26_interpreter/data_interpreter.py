@@ -78,7 +78,12 @@ class DataInterpreter(object):
             else:
                 logging.info('Opening output PDF file: %s' % output_pdf_filename)
 
-        self._raw_data_interpreter = raw_data_interpreter.RawDataInterpreter()
+        self.active_m26_planes = active_m26_planes
+        self.plane_id_to_index = [-1] * (max(self.active_m26_planes) + 1)
+        for plane_index, plane_id in enumerate(self.active_m26_planes):
+            self.plane_id_to_index[plane_id] = plane_index
+        logging.info('Interpreting Mimosa26 planes with header IDs: %s' % ', '.join([str(id) for id in self.active_m26_planes]))
+        self._raw_data_interpreter = raw_data_interpreter.RawDataInterpreter(active_m26_planes=self.active_m26_planes)
         if add_missing_events is not None:
             self._raw_data_interpreter.add_missing_events = add_missing_events
         if timing_offset is not None:
@@ -90,9 +95,6 @@ class DataInterpreter(object):
             raise ValueError('Trigger data format different than 2 is not yet supported. For event building a trigger timestamp is required!')
 
         self.set_standard_settings()
-
-        self.active_m26_planes = active_m26_planes
-        logging.info('Interpreting the following Mimosa26 planes with header IDs: %s' % ', '.join(active_m26_planes))
 
     def set_standard_settings(self):
         self.create_occupancy_hist = False
@@ -145,40 +147,34 @@ class DataInterpreter(object):
                             fletcher32=False))
 
                 if self.create_occupancy_hist:
-                    occupancy_hist = np.zeros(shape=(6, 1152, 576), dtype=np.int32)  # for each plane
+                    occupancy_hist = np.zeros(shape=(len(self.active_m26_planes), 1152, 576), dtype=np.int32)  # for each plane
 
                 if self.create_error_hist:
-                    self.event_status_hist = np.zeros(shape=(6, 32), dtype=np.int32)  # for TLU and each plane
+                    event_status_hist = np.zeros(shape=(len(self.active_m26_planes), 32), dtype=np.int32)  # for TLU and each plane
 
                 logging.info("Interpreting raw data...")
                 for i in tqdm(range(0, in_file_h5.root.raw_data.shape[0], self.chunk_size)):  # Loop over all words in the actual raw data file in chunks
                     raw_data_chunk = in_file_h5.root.raw_data.read(i, i + self.chunk_size)
-                    hits = self._raw_data_interpreter.interpret_raw_data(raw_data=raw_data_chunk, active_m26_planes=self.active_m26_planes)
-
+                    hits = self._raw_data_interpreter.interpret_raw_data(raw_data=raw_data_chunk)
                     if self.create_hit_table:
                         hit_table.append(hits)
                         hit_table.flush()
-
                     if self.create_occupancy_hist:
-                        occupancy_hist += fill_occupancy_hist(hits)
-
+                        fill_occupancy_hist(occupancy_hist, hits, self.plane_id_to_index)
                     if self.create_error_hist:
-                        fill_event_status_hist(self.event_status_hist, hits)
+                        fill_event_status_hist(event_status_hist, hits, self.plane_id_to_index)
 
                 # get last incomplete events
-                hits = self._raw_data_interpreter.interpret_raw_data(raw_data=None, build_all_events=True, active_m26_planes=self.active_m26_planes)
-
+                hits = self._raw_data_interpreter.interpret_raw_data(raw_data=None, build_all_events=True)
                 if self.create_hit_table:
                     hit_table.append(hits)
-
                 if self.create_occupancy_hist:
-                    occupancy_hist += fill_occupancy_hist(hits)
-
+                    fill_occupancy_hist(occupancy_hist, hits, self.plane_id_to_index)
                 if self.create_error_hist:
-                    fill_event_status_hist(self.event_status_hist, hits)
+                    fill_event_status_hist(event_status_hist, hits, self.plane_id_to_index)
 
                 # Add histograms to data file and create plots
-                for plane in self.active_m26_planes:
+                for plane_index, plane in enumerate(self.active_m26_planes):
                     # store occupancy map for all Mimosa26 planes
                     logging.info('Store histograms %sfor Mimosa26 plane with header ID %d.' % ('and create plots ' if self.output_pdf else '', plane))
 
@@ -187,17 +183,17 @@ class DataInterpreter(object):
                             where=out_file_h5.root,
                             name='HistOcc_plane%d' % plane,
                             title='Occupancy histogram for Mimosa26 plane with header ID %d' % plane,
-                            atom=tb.Atom.from_dtype(occupancy_hist[plane].dtype),
-                            shape=occupancy_hist[plane].shape,
+                            atom=tb.Atom.from_dtype(occupancy_hist[plane_index].dtype),
+                            shape=occupancy_hist[plane_index].shape,
                             filters=tb.Filters(
                                 complib='blosc',
                                 complevel=5,
                                 fletcher32=False))
-                        occupancy_array[:] = occupancy_hist[plane]
+                        occupancy_array[:] = occupancy_hist[plane_index]
                         if self.output_pdf:
                             try:
                                 plotting.plot_fancy_occupancy(
-                                    hist=occupancy_hist[plane].T,
+                                    hist=occupancy_hist[plane_index].T,
                                     title='Occupancy histogram for Mimosa26 plane with header ID %d' % plane,
                                     z_max='median',
                                     filename=self.output_pdf)
@@ -208,9 +204,9 @@ class DataInterpreter(object):
                         # plot event status histograms
                         if self.output_pdf:
                             try:
-                                n_words = np.sum(self.event_status_hist[plane].T)
+                                n_words = np.sum(event_status_hist[plane_index].T)
                                 plotting.plot_event_status(
-                                    hist=self.event_status_hist[plane].T,
+                                    hist=event_status_hist[plane_index].T,
                                     title='Event status for Mimosa26 plane with header ID %d ($\Sigma = % i$)' % (plane, n_words),
                                     filename=self.output_pdf)
                             except Exception:
@@ -225,21 +221,22 @@ class DataInterpreter(object):
 
 
 @njit
-def fill_occupancy_hist(hits):
-    hist = np.zeros(shape=(6, 1152, 576), dtype=np.int32)  # for each plane
+def fill_occupancy_hist(hist, hits, plane_id_to_index):
     for hit_index in range(hits.shape[0]):
         col = hits[hit_index]['column']
         row = hits[hit_index]['row']
         plane_id = hits[hit_index]['plane']
-        hist[plane_id, col, row] += 1
+        plane_index = plane_id_to_index[plane_id]
+        hist[plane_index, col, row] += 1
     return hist
 
 
 @njit
-def fill_event_status_hist(hist, hits):
+def fill_event_status_hist(hist, hits, plane_id_to_index):
     for hit_index in range(hits.shape[0]):
         event_status = hits[hit_index]['event_status']
-        plane = hits[hit_index]['plane']
+        plane_id = hits[hit_index]['plane']
+        plane_index = plane_id_to_index[plane_id]
         for i in range(32):
             if event_status & (1 << i):
-                hist[plane][i] += 1
+                hist[plane_index][i] += 1
