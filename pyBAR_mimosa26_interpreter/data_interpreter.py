@@ -9,11 +9,17 @@ import logging
 import numpy as np
 import tables as tb
 from numba import njit
-from matplotlib.backends.backend_pdf import PdfPages
 from tqdm import tqdm
+try:
+    from matplotlib.backends.backend_pdf import PdfPages
+except ImportError:
+    pass
 
 from pyBAR_mimosa26_interpreter import raw_data_interpreter
-from pyBAR_mimosa26_interpreter import plotting
+try:
+    from pyBAR_mimosa26_interpreter import plotting
+except ImportError:
+    pass
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - [%(levelname)-8s] (%(threadName)-10s) %(message)s")
 
@@ -31,8 +37,6 @@ class DataInterpreter(object):
         analyzed_data_file : string
             The file name of the output analyzed data file.
             The file extension (.h5) may not be provided.
-        create_pdf : bool
-            Creates interpretation plots into one PDF file.
         trigger_data_format : integer
             Number which indicates the used trigger data format.
             0: TLU word is trigger number (not supported)
@@ -47,7 +51,7 @@ class DataInterpreter(object):
         active_m26_planes : list
             List of M26 planes which will be interpreted. Default: Interpretation of all planes.
         create_pdf : bool
-            If True create PDF containing several plots.
+            If True, create PDF containing several ouput plots.
         chunk_size : integer
             Chunk size of the data when reading from file. The larger the chunk size, the more RAM is consumed.
         '''
@@ -64,12 +68,15 @@ class DataInterpreter(object):
         if self._raw_data_file == self._analyzed_data_file:
             raise ValueError('Filename of the input and output file must be different')
 
+        self.output_pdf = None
         if create_pdf:
             output_pdf_filename = os.path.splitext(self._raw_data_file)[0] + ".pdf"
-            logging.info('Opening output PDF file: %s', output_pdf_filename)
-            self.output_pdf = PdfPages(output_pdf_filename)
-        else:
-            self.output_pdf = None
+            try:
+                self.output_pdf = PdfPages(output_pdf_filename)
+            except NameError:
+                create_pdf = False
+            else:
+                logging.info('Opening output PDF file: %s' % output_pdf_filename)
 
         self._raw_data_interpreter = raw_data_interpreter.RawDataInterpreter()
         if add_missing_events is not None:
@@ -187,29 +194,34 @@ class DataInterpreter(object):
                                 complevel=5,
                                 fletcher32=False))
                         occupancy_array[:] = occupancy_hist[plane]
-                        try:
-                            if self.output_pdf:
-                                plotting.plot_fancy_occupancy(hist=occupancy_hist[plane].T,
-                                                              title='Occupancy for plane %d' % plane,
-                                                              z_max='median',
-                                                              filename=self.output_pdf)
-                        except Exception:
-                            logging.warning('Could not create occupancy map plot!')
+                        if self.output_pdf:
+                            try:
+                                plotting.plot_fancy_occupancy(
+                                    hist=occupancy_hist[plane].T,
+                                    title='Occupancy histogram for Mimosa26 plane with header ID %d' % plane,
+                                    z_max='median',
+                                    filename=self.output_pdf)
+                            except Exception:
+                                logging.warning('Could not create occupancy plot!')
 
                     if self.create_error_hist:
                         # plot event status histograms
-                        try:
-                            if self.output_pdf:
+                        if self.output_pdf:
+                            try:
                                 n_words = np.sum(self.event_status_hist[plane].T)
-                                plotting.plot_event_status(hist=self.event_status_hist[plane].T,
-                                                           title='Event status for plane %d ($\Sigma = % i$)' % (plane, n_words),
-                                                           filename=self.output_pdf)
-                        except Exception:
-                            logging.warning('Could not create event status plot!')
+                                plotting.plot_event_status(
+                                    hist=self.event_status_hist[plane].T,
+                                    title='Event status for Mimosa26 plane with header ID %d ($\Sigma = % i$)' % (plane, n_words),
+                                    filename=self.output_pdf)
+                            except Exception:
+                                logging.warning('Could not create event status plot!')
 
                 if self.output_pdf:
-                    logging.info('Closing output PDF file: %s', str(self.output_pdf._file.fh.name))
-                    self.output_pdf.close()
+                    logging.info('Closing output PDF file: %s' % self.output_pdf._file.fh.name)
+                    try:
+                        self.output_pdf.close()
+                    except Exception:
+                        pass
 
 
 @njit
