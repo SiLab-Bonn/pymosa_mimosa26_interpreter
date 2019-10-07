@@ -236,7 +236,7 @@ class RawDataInterpreter(object):
     def timing_offset(self, value):
         self._timing_offset = int(value)
 
-    def interpret_raw_data(self, raw_data=None, build_all_events=False, active_m26_planes=range(6)):
+    def interpret_raw_data(self, raw_data=None, build_all_events=False, active_m26_planes=[1, 2, 3, 4, 5, 6]):
         ''' Converting the raw data array to a hit array.
         The is the only function that needs to be called to convert the raw data.
 
@@ -248,7 +248,7 @@ class RawDataInterpreter(object):
             If True, build all events from the remaining trigger_data and telescope_data_array.
             Use this only after the last raw data chunk to receive the the remaining events in the buffers.
         active_m26_planes : list
-            List of M26 planes which will be interpreted. Default: Interpretation of all planes.
+            List of Mimosa26 plane header IDs that will be interpreted. Default: [1, 2, 3, 4, 5, 6].
         '''
         if raw_data is None:
             raw_data = np.zeros(shape=0, dtype=np.uint32)

@@ -28,7 +28,7 @@ class DataInterpreter(object):
     ''' Class to provide an easy to use interface to encapsulate the interpretation and event building process.
     '''
 
-    def __init__(self, raw_data_file, analyzed_data_file=None, trigger_data_format=2, add_missing_events=False, timing_offset=None, active_m26_planes=range(6), create_pdf=False, chunk_size=1000000):
+    def __init__(self, raw_data_file, analyzed_data_file=None, trigger_data_format=2, add_missing_events=False, timing_offset=None, active_m26_planes=[1, 2, 3, 4, 5, 6], create_pdf=False, chunk_size=1000000):
         '''
         Parameters
         ----------
@@ -46,10 +46,10 @@ class DataInterpreter(object):
         add_missing_events : boolean
             If True, add (silently) missing events (due to missing trigger words). Default is False.
         timing_offset : int
-            Offset between M26 40 MHz clock and 40 MHz from R/O system. If None, use default value which was obtained
-            by maximizing correlation between M26 telescope and time reference.
+            Offset between Mimosa26 40 MHz clock and 40 MHz from R/O system. If None, use default value which was obtained
+            by maximizing correlation between Mimosa26 telescope and time reference.
         active_m26_planes : list
-            List of M26 planes which will be interpreted. Default: Interpretation of all planes.
+            List of Mimosa26 plane header IDs that will be interpreted. Default: [1, 2, 3, 4, 5, 6].
         create_pdf : bool
             If True, create PDF containing several ouput plots.
         chunk_size : integer
@@ -66,7 +66,7 @@ class DataInterpreter(object):
             self._analyzed_data_file = os.path.splitext(self._raw_data_file)[0] + '_interpreted.h5'
 
         if self._raw_data_file == self._analyzed_data_file:
-            raise ValueError('Filename of the input and output file must be different')
+            raise ValueError('Filename of the input and output file must be different.')
 
         self.output_pdf = None
         if create_pdf:
@@ -92,7 +92,7 @@ class DataInterpreter(object):
         self.set_standard_settings()
 
         self.active_m26_planes = active_m26_planes
-        logging.info('Interpreting the following M26 planes: %s', active_m26_planes)
+        logging.info('Interpreting the following Mimosa26 planes with header IDs: %s' % ', '.join(active_m26_planes))
 
     def set_standard_settings(self):
         self.create_occupancy_hist = False
@@ -131,7 +131,7 @@ class DataInterpreter(object):
 
     def interpret_word_table(self):
         with tb.open_file(self._raw_data_file, 'r') as in_file_h5:
-            logging.info('Interpreting raw data file %s...', self._raw_data_file)
+            logging.info('Interpreting raw data file %s...' % self._raw_data_file)
             with tb.open_file(self._analyzed_data_file, 'w') as out_file_h5:
                 if self.create_hit_table:
                     hit_table = out_file_h5.create_table(
@@ -180,13 +180,13 @@ class DataInterpreter(object):
                 # Add histograms to data file and create plots
                 for plane in self.active_m26_planes:
                     # store occupancy map for all Mimosa26 planes
-                    logging.info('Store histograms and create plots for plane %d', plane)
+                    logging.info('Store histograms %sfor Mimosa26 plane with header ID %d.' % ('and create plots ' if self.output_pdf else '', plane))
 
                     if self.create_occupancy_hist:
                         occupancy_array = out_file_h5.create_carray(
                             where=out_file_h5.root,
                             name='HistOcc_plane%d' % plane,
-                            title='Occupancy Histogram of Mimosa plane %d' % plane,
+                            title='Occupancy histogram for Mimosa26 plane with header ID %d' % plane,
                             atom=tb.Atom.from_dtype(occupancy_hist[plane].dtype),
                             shape=occupancy_hist[plane].shape,
                             filters=tb.Filters(

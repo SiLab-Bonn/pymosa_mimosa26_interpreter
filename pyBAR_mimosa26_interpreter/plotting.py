@@ -28,7 +28,7 @@ def plot_fancy_occupancy(hist, title, z_max=None, filename=None):
     cmap.set_bad('w', 1.0)
     norm = colors.BoundaryNorm(bounds, cmap.N)
 
-    im = ax.imshow(hist, interpolation='none', aspect='auto', cmap=cmap, norm=norm, extent=extent)  # TODO: use pcolor or pcolormesh
+    im = ax.imshow(hist, interpolation='none', aspect='auto', cmap=cmap, norm=norm, extent=extent)
     ax.set_ylim((576.5, 0.5))
     ax.set_xlim((0.5, 1152.5))
     ax.set_xlabel('Column')
@@ -79,8 +79,7 @@ def plot_fancy_occupancy(hist, title, z_max=None, filename=None):
         fig.savefig(filename)
 
 
-def _plot_1d_hist(hist, yerr=None, title=None, x_axis_title=None, y_axis_title=None, x_ticks=None, color='r',
-                  plot_range=None, log_y=False, filename=None):
+def _plot_1d_hist(hist, yerr=None, title=None, x_axis_title=None, y_axis_title=None, x_ticks=None, color='r', plot_range=None, log_y=False, filename=None):
     fig = Figure()
     FigureCanvas(fig)
     ax = fig.add_subplot(111)
@@ -124,9 +123,12 @@ def _plot_1d_hist(hist, yerr=None, title=None, x_axis_title=None, y_axis_title=N
 
 
 def plot_event_status(hist, title=None, filename=None):
-    _plot_1d_hist(hist=hist,
-                  title=title,
-                  log_y=True,
-                  plot_range=range(8),
-                  x_ticks=('Trigger\nerror', 'No\ntrigger\nword', 'Trigger\ntimestamp\nOVF', 'Trigger\nnumber\nOVF', 'M26\ndata\nerror', 'M26\ntimestamp\nOVF', 'M26\nframe ID\nOVF', 'M26\nrow OVF\nflag'),
-                  color='g', y_axis_title='Number of events', filename=filename)
+    _plot_1d_hist(
+        hist=hist,
+        title=title,
+        y_axis_title='Number of events',
+        log_y=True,
+        x_ticks=('Trigger\nerror', 'No\ntrigger\nword', 'Trigger\ntimestamp\nOVF', 'Trigger\nnumber\nOVF', 'M26\ndata\nerror', 'M26\ntimestamp\nOVF', 'M26\nframe ID\nOVF', 'M26\nrow OVF\nflag'),
+        color='g',
+        plot_range=range(8),
+        filename=filename)
