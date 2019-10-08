@@ -28,7 +28,7 @@ class DataInterpreter(object):
     ''' Class to provide an easy to use interface to encapsulate the interpretation and event building process.
     '''
 
-    def __init__(self, raw_data_file, analyzed_data_file=None, trigger_data_format=2, add_missing_events=False, timing_offset=None, analyze_m26_header_ids=None, create_pdf=False, chunk_size=1000000):
+    def __init__(self, raw_data_file, analyzed_data_file=None, trigger_data_format=2, add_missing_events=False, timing_offset=None, analyze_m26_header_ids=None, pure_python=False, create_pdf=False, chunk_size=1000000):
         '''
         Parameters
         ----------
@@ -51,11 +51,20 @@ class DataInterpreter(object):
         analyze_m26_header_ids : list
             List of Mimosa26 header IDs that will be interpreted.
             If None, the value defaults to the global value raw_data_interpreter.DEFAULT_PYMOSA_M26_HEADER_IDS.
+        pure_python : bool
+            If True, disable JIT compiler. The (n)jit decorator act as if it performs no operation.
         create_pdf : bool
             If True, create PDF containing several ouput plots.
         chunk_size : integer
             Chunk size of the data when reading from file. The larger the chunk size, the more RAM is consumed.
         '''
+        # Activate pure python mode by setting the environment variable NUMBA_DISABLE_JIT
+        pure_python
+        if pure_python:
+            logging.info('PURE PYTHON MODE: INTENDED FOR TESTING ONLY! YOU CANNOT SWITCH THE MODE WITHIN THE PYTHON INTERPRETER INSTANCE!')
+            os.environ['NUMBA_DISABLE_JIT'] = '1'
+        else:
+            os.environ['NUMBA_DISABLE_JIT'] = '0'
         self._raw_data_file = raw_data_file
 
         if analyzed_data_file:
