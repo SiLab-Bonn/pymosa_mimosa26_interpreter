@@ -28,7 +28,7 @@ class DataInterpreter(object):
     ''' Class to provide an easy to use interface to encapsulate the interpretation and event building process.
     '''
 
-    def __init__(self, raw_data_file, analyzed_data_file=None, trigger_data_format=2, add_missing_events=False, timing_offset=None, analyze_m26_header_ids=[1, 2, 3, 4, 5, 6], create_pdf=False, chunk_size=1000000):
+    def __init__(self, raw_data_file, analyzed_data_file=None, trigger_data_format=2, add_missing_events=False, timing_offset=None, analyze_m26_header_ids=None, create_pdf=False, chunk_size=1000000):
         '''
         Parameters
         ----------
@@ -49,7 +49,8 @@ class DataInterpreter(object):
             Offset between Mimosa26 40 MHz clock and 40 MHz from R/O system. If None, use default value which was obtained
             by maximizing correlation between Mimosa26 telescope and time reference.
         analyze_m26_header_ids : list
-            List of Mimosa26 plane header IDs that will be interpreted. Default: [1, 2, 3, 4, 5, 6].
+            List of Mimosa26 header IDs that will be interpreted.
+            If None, the value defaults to the global value raw_data_interpreter.DEFAULT_PYMOSA_M26_HEADER_IDS.
         create_pdf : bool
             If True, create PDF containing several ouput plots.
         chunk_size : integer
@@ -78,7 +79,10 @@ class DataInterpreter(object):
             else:
                 logging.info('Opening output PDF file: %s' % output_pdf_filename)
 
-        self.analyze_m26_header_ids = analyze_m26_header_ids
+        if analyze_m26_header_ids is None:
+            self.analyze_m26_header_ids = raw_data_interpreter.DEFAULT_PYMOSA_M26_HEADER_IDS
+        else:
+            self.analyze_m26_header_ids = analyze_m26_header_ids
         self.plane_id_to_index = [-1] * (max(self.analyze_m26_header_ids) + 1)
         for plane_index, plane_id in enumerate(self.analyze_m26_header_ids):
             self.plane_id_to_index[plane_id] = plane_index
