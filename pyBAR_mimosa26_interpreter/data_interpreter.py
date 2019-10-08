@@ -137,7 +137,7 @@ class DataInterpreter(object):
 
     def interpret_word_table(self):
         with tb.open_file(self._raw_data_file, 'r') as in_file_h5:
-            logging.info('Interpreting raw data file %s...' % self._raw_data_file)
+            logging.info('Opening raw data file %s...' % self._raw_data_file)
             with tb.open_file(self._analyzed_data_file, 'w') as out_file_h5:
                 if self.create_hit_table:
                     hit_table = out_file_h5.create_table(
