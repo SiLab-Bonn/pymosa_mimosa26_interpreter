@@ -9,6 +9,11 @@ from matplotlib.backends.backend_pdf import PdfPages
 
 def plot_fancy_occupancy(hist, title, z_max=None, filename=None):
     if z_max == 'median':
+        cmap = cm.get_cmap('coolwarm')
+    else:
+        cmap = cm.get_cmap('viridis')
+    cmap.set_bad('w')
+    if z_max == 'median':
         z_max = 2 * np.ma.median(hist)
     elif z_max == 'maximum' or z_max is None:
         z_max = np.ma.max(hist)
@@ -21,13 +26,8 @@ def plot_fancy_occupancy(hist, title, z_max=None, filename=None):
     ax.set_title(title, size=6)
     extent = [0.5, 1152.5, 576.5, 0.5]
     bounds = np.linspace(start=0, stop=z_max, num=255, endpoint=True)
-    if z_max == 'median':
-        cmap = cm.get_cmap('coolwarm')
-    else:
-        cmap = cm.get_cmap('cool')
-    cmap.set_bad('w', 1.0)
     norm = colors.BoundaryNorm(bounds, cmap.N)
-
+    hist = np.ma.masked_equal(hist, 0)
     im = ax.imshow(hist, interpolation='none', aspect='auto', cmap=cmap, norm=norm, extent=extent)
     ax.set_ylim((576.5, 0.5))
     ax.set_xlim((0.5, 1152.5))

@@ -80,9 +80,9 @@ class DataInterpreter(object):
 
         self.output_pdf = None
         if create_pdf:
-            output_pdf_filename = os.path.splitext(self.raw_data_file)[0] + ".pdf"
+            output_pdf_filename = os.path.splitext(self.analyzed_data_file)[0] + ".pdf"
             try:
-                self.output_pdf = PdfPages(output_pdf_filename)
+                self.output_pdf = PdfPages(output_pdf_filename, keep_empty=False)
             except NameError:
                 create_pdf = False
 
@@ -206,6 +206,7 @@ class DataInterpreter(object):
                                 fletcher32=False))
                         occupancy_array[:] = occupancy_hist[plane_index]
                         if self.output_pdf:
+                            # plot fancy occupancy histogram
                             try:
                                 plotting.plot_fancy_occupancy(
                                     hist=occupancy_hist[plane_index].T,
@@ -216,7 +217,7 @@ class DataInterpreter(object):
                                 logging.warning('Could not create occupancy plot!')
 
                     if self.create_error_hist:
-                        # plot event status histograms
+                        # plot event status histogram
                         if self.output_pdf:
                             try:
                                 n_words = np.sum(event_status_hist[plane_index].T)

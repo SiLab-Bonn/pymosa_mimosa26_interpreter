@@ -69,9 +69,9 @@ class TestInterpreter(unittest.TestCase):
     @classmethod
     def tearDownClass(cls):  # Remove created files
         os.remove(os.path.join(tests_data_folder, 'anemone_generated_raw_data.h5'))
-        os.remove(os.path.join(tests_data_folder, 'anemone_generated_raw_data.pdf'))
         os.remove(os.path.join(tests_data_folder, 'anemone_generated_raw_data_interpreted.h5'))
         os.remove(os.path.join(tests_data_folder, 'anemone_interpreted.h5'))
+        #os.remove(os.path.join(tests_data_folder, 'anemone_interpreted.pdf'))
 
     def test_interpretation(self):
         result_dtype = raw_data_interpreter.hits_dtype
@@ -160,6 +160,8 @@ class TestInterpreter(unittest.TestCase):
             hit_table.append(result_array)
 
         with data_interpreter.DataInterpreter(raw_data_file=generated_raw_data_file, analyzed_data_file=interpreted_file, trigger_data_format=2, analyze_m26_header_ids=[0], create_pdf=True, chunk_size=1000000) as raw_data_analysis:
+            raw_data_analysis.create_occupancy_hist = True
+            raw_data_analysis.create_error_hist = True
             raw_data_analysis.create_hit_table = True
             raw_data_analysis.interpret_word_table()
 
