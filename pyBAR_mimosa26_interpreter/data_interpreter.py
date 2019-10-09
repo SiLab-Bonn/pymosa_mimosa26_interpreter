@@ -65,22 +65,22 @@ class DataInterpreter(object):
             os.environ['NUMBA_DISABLE_JIT'] = '1'
         else:
             os.environ['NUMBA_DISABLE_JIT'] = '0'
-        self._raw_data_file = raw_data_file
+        self.raw_data_file = raw_data_file
 
         if analyzed_data_file:
             if os.path.splitext(analyzed_data_file)[1].strip().lower() != ".h5":
-                self._analyzed_data_file = os.path.splitext(analyzed_data_file)[0] + ".h5"
+                self.analyzed_data_file = os.path.splitext(analyzed_data_file)[0] + ".h5"
             else:
-                self._analyzed_data_file = analyzed_data_file
+                self.analyzed_data_file = analyzed_data_file
         else:
-            self._analyzed_data_file = os.path.splitext(self._raw_data_file)[0] + '_interpreted.h5'
+            self.analyzed_data_file = os.path.splitext(self.raw_data_file)[0] + '_interpreted.h5'
 
-        if self._raw_data_file == self._analyzed_data_file:
+        if self.raw_data_file == self.analyzed_data_file:
             raise ValueError('Filename of the input and output file must be different.')
 
         self.output_pdf = None
         if create_pdf:
-            output_pdf_filename = os.path.splitext(self._raw_data_file)[0] + ".pdf"
+            output_pdf_filename = os.path.splitext(self.raw_data_file)[0] + ".pdf"
             try:
                 self.output_pdf = PdfPages(output_pdf_filename)
             except NameError:
@@ -96,11 +96,11 @@ class DataInterpreter(object):
         for plane_index, plane_id in enumerate(self.analyze_m26_header_ids):
             self.plane_id_to_index[plane_id] = plane_index
         logging.info('Interpreting Mimosa26 planes with header IDs: %s' % ', '.join([str(id) for id in self.analyze_m26_header_ids]))
-        self._raw_data_interpreter = raw_data_interpreter.RawDataInterpreter(analyze_m26_header_ids=self.analyze_m26_header_ids)
+        self.interpreter = raw_data_interpreter.RawDataInterpreter(analyze_m26_header_ids=self.analyze_m26_header_ids)
         if add_missing_events is not None:
-            self._raw_data_interpreter.add_missing_events = add_missing_events
+            self.interpreter.add_missing_events = add_missing_events
         if timing_offset is not None:
-            self._raw_data_interpreter.timing_offset = timing_offset
+            self.interpreter.timing_offset = timing_offset
 
         # Std. settings
         self.chunk_size = chunk_size
@@ -145,9 +145,10 @@ class DataInterpreter(object):
         return self
 
     def interpret_word_table(self):
-        with tb.open_file(self._raw_data_file, 'r') as in_file_h5:
-            logging.info('Opening raw data file %s...' % self._raw_data_file)
-            with tb.open_file(self._analyzed_data_file, 'w') as out_file_h5:
+        logging.info('Opening raw data file %s...' % self.raw_data_file)
+        with tb.open_file(self.raw_data_file, 'r') as in_file_h5:
+            logging.info('Creating analyzed data file %s...' % self.analyzed_data_file)
+            with tb.open_file(self.analyzed_data_file, 'w') as out_file_h5:
                 if self.create_hit_table:
                     hit_table = out_file_h5.create_table(
                         where=out_file_h5.root,
@@ -169,7 +170,7 @@ class DataInterpreter(object):
                 pbar = tqdm(total=in_file_h5.root.raw_data.shape[0], ncols=80)
                 for i in range(0, in_file_h5.root.raw_data.shape[0], self.chunk_size):  # Loop over all words in the actual raw data file in chunks
                     raw_data_chunk = in_file_h5.root.raw_data.read(i, i + self.chunk_size)
-                    hits = self._raw_data_interpreter.interpret_raw_data(raw_data=raw_data_chunk)
+                    hits = self.interpreter.interpret_raw_data(raw_data=raw_data_chunk)
                     if self.create_hit_table:
                         hit_table.append(hits)
                         hit_table.flush()
@@ -181,7 +182,7 @@ class DataInterpreter(object):
                 pbar.close()
 
                 # get last incomplete events
-                hits = self._raw_data_interpreter.interpret_raw_data(raw_data=None, build_all_events=True)
+                hits = self.interpreter.interpret_raw_data(raw_data=None, build_all_events=True)
                 if self.create_hit_table:
                     hit_table.append(hits)
                 if self.create_occupancy_hist:
