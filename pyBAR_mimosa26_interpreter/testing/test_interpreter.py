@@ -4,19 +4,20 @@
 
 import os
 import unittest
+
 import tables as tb
 import numpy as np
 
-from pyBAR_mimosa26_interpreter.testing.tools import test_tools
 from pyBAR_mimosa26_interpreter import data_interpreter
 from pyBAR_mimosa26_interpreter import raw_data_interpreter
+# from pyBAR_mimosa26_interpreter.testing.tools.test_tools import compare_h5_files
 
 testing_path = os.path.dirname(__file__)  # Get file path
 tests_data_folder = os.path.abspath(os.path.join(os.path.dirname(os.path.realpath(testing_path)) + r'/testing/'))  # Set test data path
 
 
 def create_tlu_word(trigger_number, time_stamp):
-            return ((time_stamp << 16) & (0x7FFF0000)) | (trigger_number & 0x0000FFFF) | (1 << 31 & 0x80000000)
+    return ((time_stamp << 16) & (0x7FFF0000)) | (trigger_number & 0x0000FFFF) | (1 << 31 & 0x80000000)
 
 
 def create_m26_header(plane, data_loss=False):
@@ -59,29 +60,29 @@ def create_frame_trailer1(plane):
     return create_m26_header(plane=plane) | (((0xaa50 | plane)) & 0x0000FFFF)
 
 
-class TestInterpretation(unittest.TestCase):
+class TestInterpreter(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
         pass
 
     @classmethod
-    def tearDownClass(self):  # Remove created files
-        os.remove(os.path.join(tests_data_folder, 'anemone_raw_data.h5'))
-        os.remove(os.path.join(tests_data_folder, 'anemone_raw_data.pdf'))
-        os.remove(os.path.join(tests_data_folder, 'anemone_raw_data_interpreted_result.h5'))
-        os.remove(os.path.join(tests_data_folder, 'anemone_raw_data_interpreted.h5'))
+    def tearDownClass(cls):  # Remove created files
+        os.remove(os.path.join(tests_data_folder, 'anemone_generated_raw_data.h5'))
+        os.remove(os.path.join(tests_data_folder, 'anemone_generated_raw_data.pdf'))
+        os.remove(os.path.join(tests_data_folder, 'anemone_generated_raw_data_interpreted.h5'))
+        os.remove(os.path.join(tests_data_folder, 'anemone_interpreted.h5'))
 
     def test_interpretation(self):
         result_dtype = raw_data_interpreter.hits_dtype
         FRAME_UNIT_CYCLE = raw_data_interpreter.FRAME_UNIT_CYCLE
         ROW_UNIT_CYCLE = raw_data_interpreter.ROW_UNIT_CYCLE
 
-        test_data_file = os.path.join(tests_data_folder, 'anemone_raw_data.h5')
-        interpreted_result_file = os.path.join(tests_data_folder, 'anemone_raw_data_interpreted_result.h5')
-        interpreted_test_file = os.path.join(tests_data_folder, 'anemone_raw_data_interpreted.h5')
+        generated_raw_data_file = os.path.join(tests_data_folder, 'anemone_generated_raw_data.h5')
+        generated_raw_data_interpreted_file = os.path.join(tests_data_folder, 'anemone_generated_raw_data_interpreted.h5')
+        interpreted_file = os.path.join(tests_data_folder, 'anemone_interpreted.h5')
 
-        # TODO: add multi hits events, add events with multiple trigger, add ecents woth out of range trogger ts
+        # TODO: add multi-hits events, add events with multiple trigger, add events with out of range trigger ts
         def create_raw_data(n_events=1000, plane=0, delta_trigger_ts=8000, n_hits_per_events=1, n_events_trigger_hit=0.6, n_events_trigger_no_hit=0.3, n_events_no_trigger_hit=0.1):
             # shuffle event type: 1: event with hit and trigger; 2: event with trigger but no hit; 3: event with hit but no trigger
             event_type = np.random.choice([1, 2, 3], size=(n_events,), p=[n_events_trigger_hit, n_events_trigger_no_hit, n_events_no_trigger_hit])
@@ -90,7 +91,7 @@ class TestInterpretation(unittest.TestCase):
             # create random trigger time stamps
             trigger_time_stamps = np.linspace(start=14103, stop=14103 + n_events * delta_trigger_ts, num=n_events, dtype=np.int)
             hit_i = 0
-            event_number = 0
+            event_number = -1  # event number starts at 0
             event_status = 0
 
             for index in range(n_events):
@@ -104,17 +105,17 @@ class TestInterpretation(unittest.TestCase):
                 if event_type[index - 1] == 3 and index != 0:
                     # if event before was event without trigger, set current event status as trigger increase error
                     event_status |= raw_data_interpreter.TRIGGER_NUMBER_ERROR
-                raw_data.append(create_frame_header_low(plane=plane + 1, m26_timestamp=row_time_stamp + 2 * FRAME_UNIT_CYCLE - ROW_UNIT_CYCLE * row + raw_data_interpreter.TIMING_OFFSET))
-                raw_data.append(create_frame_header_high(plane=plane + 1, m26_timestamp=row_time_stamp + 2 * FRAME_UNIT_CYCLE - ROW_UNIT_CYCLE * row+ raw_data_interpreter.TIMING_OFFSET))
-                raw_data.append(create_frame_id_low(plane=plane + 1, m26_frame_number=index))
-                raw_data.append(create_frame_id_high(plane=plane + 1, m26_frame_number=index))
-                raw_data.append(create_frame_length(plane=plane + 1, frame_length=n_hits_per_events))  # number of data record words
-                raw_data.append(create_frame_length(plane=plane + 1, frame_length=n_hits_per_events))  # number of data record words
-                if event_type[index] != 2:  # only create hit words if event with hit 
-                    raw_data.append(create_row_data_word(plane=plane + 1, row=row, n_words=n_hits_per_events))
-                    raw_data.append(create_column_data_word(plane=plane + 1, column=column, n_hits=n_hits_per_events - 1))  # only one hit
-                raw_data.append(create_frame_trailer0(plane=plane + 1))
-                raw_data.append(create_frame_trailer1(plane=plane + 1))
+                raw_data.append(create_frame_header_low(plane=plane, m26_timestamp=row_time_stamp + 2 * FRAME_UNIT_CYCLE - ROW_UNIT_CYCLE * row + raw_data_interpreter.TIMING_OFFSET))
+                raw_data.append(create_frame_header_high(plane=plane, m26_timestamp=row_time_stamp + 2 * FRAME_UNIT_CYCLE - ROW_UNIT_CYCLE * row + raw_data_interpreter.TIMING_OFFSET))
+                raw_data.append(create_frame_id_low(plane=plane, m26_frame_number=index))
+                raw_data.append(create_frame_id_high(plane=plane, m26_frame_number=index))
+                raw_data.append(create_frame_length(plane=plane, frame_length=n_hits_per_events))  # number of data record words
+                raw_data.append(create_frame_length(plane=plane, frame_length=n_hits_per_events))  # number of data record words
+                if event_type[index] != 2:  # only create hit words if event with hit
+                    raw_data.append(create_row_data_word(plane=plane, row=row, n_words=n_hits_per_events))
+                    raw_data.append(create_column_data_word(plane=plane, column=column, n_hits=n_hits_per_events - 1))  # only one hit
+                raw_data.append(create_frame_trailer0(plane=plane))
+                raw_data.append(create_frame_trailer1(plane=plane))
 
                 # write to result array
                 if event_type[index] == 1:  # only write trigger hits to data file
@@ -137,43 +138,48 @@ class TestInterpretation(unittest.TestCase):
         raw_data = []
         raw_data, result_array = create_raw_data()
 
-        # create result file
-        with tb.open_file(interpreted_result_file, 'w') as out_file_h5:
-            hit_table = out_file_h5.create_table(where=out_file_h5.root,
-                                                 name='Hits',
-                                                 description=result_dtype,
-                                                 title='hit_data',
-                                                 filters=tb.Filters(complib='blosc', complevel=5, fletcher32=False))
-            hit_table.append(result_array)
-
-        # write raw_data to file
+        # write generated raw data to file
         filter_raw_data = tb.Filters(complib='blosc', complevel=5, fletcher32=False)
-        with tb.open_file(test_data_file, 'w') as out_file_h5:
-            raw_data_earray = out_file_h5.create_earray(out_file_h5.root,
-                                                        name='raw_data',
-                                                        atom=tb.UIntAtom(),
-                                                        shape=(0,), title='raw_data',
-                                                        filters=filter_raw_data)
+        with tb.open_file(generated_raw_data_file, 'w') as out_file_h5:
+            raw_data_earray = out_file_h5.create_earray(
+                where=out_file_h5.root,
+                name='raw_data',
+                atom=tb.UIntAtom(),
+                shape=(0,), title='raw_data',
+                filters=filter_raw_data)
             raw_data_earray.append(raw_data)
 
-        with data_interpreter.DataInterpreter(raw_data_file=test_data_file, trigger_data_format=2, create_pdf=True, chunk_size=1000000) as raw_data_analysis:
+        # write generated interpreted file
+        with tb.open_file(generated_raw_data_interpreted_file, 'w') as out_file_h5:
+            hit_table = out_file_h5.create_table(
+                where=out_file_h5.root,
+                name='Hits',
+                description=result_dtype,
+                title='hit_data',
+                filters=tb.Filters(complib='blosc', complevel=5, fletcher32=False))
+            hit_table.append(result_array)
+
+        with data_interpreter.DataInterpreter(raw_data_file=generated_raw_data_file, analyzed_data_file=interpreted_file, trigger_data_format=2, analyze_m26_header_ids=[0], create_pdf=True, chunk_size=1000000) as raw_data_analysis:
             raw_data_analysis.create_hit_table = True
             raw_data_analysis.interpret_word_table()
 
         # Open result and interpreter file in order to compare them. Compare only Hit fields
-        with tb.open_file(interpreted_result_file, 'r') as in_file_h5:
-                    data_orig = in_file_h5.root.Hits[:]
+        with tb.open_file(generated_raw_data_interpreted_file, 'r') as in_file_h5:
+            data_generated = in_file_h5.root.Hits[:]
 
-        with tb.open_file(interpreted_test_file, 'r') as in_file_h5:
-                    data_inter = in_file_h5.root.Hits[:]
+        with tb.open_file(interpreted_file, 'r') as in_file_h5:
+            data_interpreted = in_file_h5.root.Hits[:]
 
         # Compare with result
-        for key in data_orig.dtype.names:
+        for key in data_generated.dtype.names:
             if key == 'event_status':
                 continue  # skip event status
-            np.testing.assert_array_equal(data_orig['%s' % key], data_inter['%s' % key], err_msg='%s array mismatch' % key)
+            np.testing.assert_array_equal(data_generated[key], data_interpreted[key], err_msg='Column %s mismatch' % key)
+
+        # checks_passed, error_msg = compare_h5_files(first_file=generated_raw_data_interpreted_file, second_file=interpreted_file)
+        # self.assertTrue(checks_passed, msg=error_msg)
 
 
 if __name__ == '__main__':
-    suite = unittest.TestLoader().loadTestsFromTestCase(TestInterpretation)
+    suite = unittest.TestLoader().loadTestsFromTestCase(TestInterpreter)
     unittest.TextTestRunner(verbosity=2).run(suite)
