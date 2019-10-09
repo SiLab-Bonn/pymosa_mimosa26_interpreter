@@ -166,7 +166,8 @@ class DataInterpreter(object):
                     event_status_hist = np.zeros(shape=(len(self.analyze_m26_header_ids), 32), dtype=np.int32)  # for TLU and each plane
 
                 logging.info("Interpreting raw data...")
-                for i in tqdm(range(0, in_file_h5.root.raw_data.shape[0], self.chunk_size)):  # Loop over all words in the actual raw data file in chunks
+                pbar = tqdm(total=in_file_h5.root.raw_data.shape[0], ncols=80)
+                for i in range(0, in_file_h5.root.raw_data.shape[0], self.chunk_size):  # Loop over all words in the actual raw data file in chunks
                     raw_data_chunk = in_file_h5.root.raw_data.read(i, i + self.chunk_size)
                     hits = self._raw_data_interpreter.interpret_raw_data(raw_data=raw_data_chunk)
                     if self.create_hit_table:
@@ -176,6 +177,8 @@ class DataInterpreter(object):
                         fill_occupancy_hist(occupancy_hist, hits, self.plane_id_to_index)
                     if self.create_error_hist:
                         fill_event_status_hist(event_status_hist, hits, self.plane_id_to_index)
+                    pbar.update(raw_data_chunk.shape[0])
+                pbar.close()
 
                 # get last incomplete events
                 hits = self._raw_data_interpreter.interpret_raw_data(raw_data=None, build_all_events=True)
