@@ -75,8 +75,8 @@ class DataInterpreter(object):
         else:
             self.analyzed_data_file = os.path.splitext(self.raw_data_file)[0] + '_interpreted.h5'
 
-        if self.raw_data_file == self.analyzed_data_file:
-            raise ValueError('Filename of the input and output file must be different.')
+        if os.path.abspath(self.raw_data_file) == os.path.abspath(self.analyzed_data_file):
+            raise ValueError('Files raw_data_file and analyzed_data_file must be different.')
 
         self.output_pdf = None
         if create_pdf:
@@ -85,8 +85,6 @@ class DataInterpreter(object):
                 self.output_pdf = PdfPages(output_pdf_filename)
             except NameError:
                 create_pdf = False
-            else:
-                logging.info('Opening output PDF file: %s' % output_pdf_filename)
 
         if analyze_m26_header_ids is None:
             self.analyze_m26_header_ids = raw_data_interpreter.DEFAULT_PYMOSA_M26_HEADER_IDS
@@ -193,7 +191,7 @@ class DataInterpreter(object):
                 # Add histograms to data file and create plots
                 for plane_index, plane in enumerate(self.analyze_m26_header_ids):
                     # store occupancy map for all Mimosa26 planes
-                    logging.info('Store histograms %sfor Mimosa26 plane with header ID %d.' % ('and create plots ' if self.output_pdf else '', plane))
+                    logging.info('Storing histograms %sfor Mimosa26 plane with header ID %d.' % ('and creating plots ' if self.output_pdf else '', plane))
 
                     if self.create_occupancy_hist:
                         occupancy_array = out_file_h5.create_carray(
