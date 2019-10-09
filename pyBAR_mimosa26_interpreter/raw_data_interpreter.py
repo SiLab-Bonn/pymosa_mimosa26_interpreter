@@ -600,7 +600,7 @@ def _build_events(trigger_data, trigger_data_index, telescope_data, telescope_da
                         hits_index = curr_hits_index
                         # Set event status for complete event
                         index = curr_hits_index
-                        while trigger_event_number == hits[index]['event_number']:
+                        while trigger_event_number == hits[index]['event_number'] and index >= 0:
                             hits[index]['event_status'] = curr_event_status[plane_id_to_index[hits[index]['plane']]]
                             index -= 1
                         break
