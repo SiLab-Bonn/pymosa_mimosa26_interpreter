@@ -25,7 +25,8 @@ setup(
     install_requires=install_requires,
     packages=find_packages(),
     include_package_data=True,  # accept all data files and directories matched by MANIFEST.in or found in source control
-    package_data={'': ['README.*', 'VERSION'], 'docs': ['*'], 'examples': ['*']},
+    package_data={'': ['README.*', 'VERSION', 'LICENSE.txt'], 'docs': ['*'], 'examples': ['*']},
     keywords=['mimosa26', 'test beam', 'pixel'],
+    python_requires='>=2.7',
     platforms='any'
 )
