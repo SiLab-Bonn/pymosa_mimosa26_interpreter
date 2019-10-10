@@ -211,7 +211,7 @@ class DataInterpreter(object):
                                 plotting.plot_fancy_occupancy(
                                     hist=occupancy_hist[plane_index].T,
                                     title='Occupancy histogram for Mimosa26 plane with header ID %d' % plane,
-                                    z_max='median',
+                                    z_max=np.ceil(np.percentile(occupancy_hist[plane_index], q=99.00)),
                                     filename=self.output_pdf)
                             except Exception:
                                 logging.warning('Could not create occupancy plot!')
