@@ -1,5 +1,6 @@
 
-# Mimosa26 Interpreter [![Build Status](https://travis-ci.org/SiLab-Bonn/pyBAR_mimosa26_interpreter.svg?branch=master)](https://travis-ci.org/SiLab-Bonn/pyBAR_mimosa26_interpreter) [![Build Status](https://ci.appveyor.com/api/projects/status/github/SiLab-Bonn/pyBAR_mimosa26_interpreter?svg=true)](https://ci.appveyor.com/project/DavidLP/pyBAR_mimosa26_interpreter-71xwl)
+# Mimosa26 Interpreter [![Build Status](https://travis-ci.org/SiLab-Bonn/pyBAR_mimosa26_interpreter.svg?branch=master)](https://travis-ci.org/SiLab-Bonn/pyBAR_mimosa26_interpreter) [![Build status](https://ci.appveyor.com/api/projects/status/6ur82s62x9hs7mj4?svg=true)](https://ci.appveyor.com/project/laborleben/pybar-mimosa26-interpreter)
+
 
 pyBAR_mimosa26_interpreter - A Mimosa26 raw data interpreter in Python.
 
