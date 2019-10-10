@@ -71,7 +71,7 @@ class TestInterpreter(unittest.TestCase):
         os.remove(os.path.join(tests_data_folder, 'anemone_generated_raw_data.h5'))
         os.remove(os.path.join(tests_data_folder, 'anemone_generated_raw_data_interpreted.h5'))
         os.remove(os.path.join(tests_data_folder, 'anemone_interpreted.h5'))
-        #os.remove(os.path.join(tests_data_folder, 'anemone_interpreted.pdf'))
+        os.remove(os.path.join(tests_data_folder, 'anemone_interpreted.pdf'))
 
     def test_interpretation(self):
         result_dtype = raw_data_interpreter.hits_dtype
