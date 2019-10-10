@@ -28,7 +28,7 @@ class DataInterpreter(object):
     ''' Class to provide an easy to use interface to encapsulate the interpretation and event building process.
     '''
 
-    def __init__(self, raw_data_file, analyzed_data_file=None, trigger_data_format=2, add_missing_events=False, timing_offset=None, analyze_m26_header_ids=None, pure_python=False, create_pdf=False, chunk_size=1000000):
+    def __init__(self, raw_data_file, analyzed_data_file=None, analyze_m26_header_ids=None, trigger_data_format=2, add_missing_events=False, timing_offset=None, pure_python=False, create_pdf=False, chunk_size=1000000):
         '''
         Parameters
         ----------
@@ -37,6 +37,9 @@ class DataInterpreter(object):
         analyzed_data_file : string
             The file name of the output analyzed data file.
             The file extension (.h5) may not be provided.
+        analyze_m26_header_ids : list
+            List of Mimosa26 header IDs that will be interpreted.
+            If None, the value defaults to the global value raw_data_interpreter.DEFAULT_PYMOSA_M26_HEADER_IDS.
         trigger_data_format : integer
             Number which indicates the used trigger data format.
             0: TLU word is trigger number (not supported)
@@ -48,9 +51,6 @@ class DataInterpreter(object):
         timing_offset : int
             Offset between Mimosa26 40 MHz clock and 40 MHz from R/O system. If None, use default value which was obtained
             by maximizing correlation between Mimosa26 telescope and time reference.
-        analyze_m26_header_ids : list
-            List of Mimosa26 header IDs that will be interpreted.
-            If None, the value defaults to the global value raw_data_interpreter.DEFAULT_PYMOSA_M26_HEADER_IDS.
         pure_python : bool
             If True, disable JIT compiler. The (n)jit decorator act as if it performs no operation.
         create_pdf : bool
