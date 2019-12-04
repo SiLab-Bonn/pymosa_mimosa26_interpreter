@@ -1,5 +1,2 @@
-include README.* VERSION
+include README.* VERSION LICENSE.txt requirements.txt
 recursive-include examples *
-recursive-include tests *
-recursive-include pybar_mimosa26_interpreter *
-global-exclude *.pyc .project .pydevproject build

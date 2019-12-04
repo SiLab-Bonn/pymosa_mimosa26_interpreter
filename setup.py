@@ -1,9 +1,11 @@
 #!/usr/bin/env python
 from setuptools import setup, find_packages  # This setup relies on setuptools since distutils is insufficient and badly hacked code
 
-version = '0.0.1'
-author = 'David-Leon Pohl, Toko Hirono'
-author_email = 'pohl@physik.uni-bonn.de,setup.py'
+author = 'Yannick Dieter, Toko Hirono, Jens Janssen, David-Leon Pohl, Pascal Wolf'
+author_email = 'dieter@physik.uni-bonn.de, hirono@physik.uni-bonn.de, janssen@physik.uni-bonn.de, pohl@physik.uni-bonn.de, wolf@physik.uni-bonn.de'
+
+with open('VERSION') as version_file:
+    version = version_file.read().strip()
 
 # requirements for core functionality from requirements.txt
 with open('requirements.txt') as f:
@@ -12,9 +14,9 @@ with open('requirements.txt') as f:
 setup(
     name='pyBAR_mimosa26_interpreter',
     version=version,
-    description='This package can be used to interpred raw data from the Mimosa 26 telescope taken with the readout framework pyBAR. It also contains histogramming functions. The interpretation uses numba JIT to increase the speed.',
+    description='Interpreter for Mimosa26 raw data recorded with pymosa DAQ',
     url='https://github.com/SiLab-Bonn/pyBAR_mimosa26_interpreter',
-    license='GNU LESSER GENERAL PUBLIC LICENSE Version 2.1',
+    license='BSD 3-Clause License',
     long_description='',
     author=author,
     maintainer=author,
@@ -23,7 +25,7 @@ setup(
     install_requires=install_requires,
     packages=find_packages(),
     include_package_data=True,  # accept all data files and directories matched by MANIFEST.in or found in source control
-    package_data={'': ['README.*', 'VERSION'], 'docs': ['*'], 'examples': ['*']},
-    keywords=['mimosa', 'test beam', 'pixel'],
+    keywords=['mimosa26', 'test-beam', 'pixel', 'telescope'],
+    python_requires='>=2.7',
     platforms='any'
 )

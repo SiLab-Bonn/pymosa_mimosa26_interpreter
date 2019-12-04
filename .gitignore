@@ -43,11 +43,6 @@ coverage.xml
 docs/_build/
 # PyBuilder
 target/
-#  Cython files
-analysis_functions.cpp
-data_clusterizer.cpp
-data_histograming.cpp
-data_interpreter.cpp
 # PyDev files
 *.project
 *.pydevproject
@@ -60,3 +55,4 @@ data_interpreter.cpp
 # Mac
 .DS_Store
 changelog
+*~

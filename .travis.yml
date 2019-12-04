@@ -1,27 +1,30 @@
 language: python
 python:
 - 2.7
-- 3.5
+- 3.7
 
 sudo: false
 
 notifications:
   email:
+  - hirono@physik.uni-bonn.de
   - pohl@physik.uni-bonn.de
-  
+  - janssen@physik.uni-bonn.de
+
 install:
   - if [[ "$TRAVIS_PYTHON_VERSION" == "2.7" ]]; then
-     wget https://repo.continuum.io/miniconda/Miniconda-latest-Linux-x86_64.sh -O miniconda.sh;
+      wget https://repo.continuum.io/miniconda/Miniconda2-latest-Linux-x86_64.sh -O miniconda.sh;
     else
       wget https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh -O miniconda.sh;
     fi
   - chmod +x miniconda.sh
   - bash miniconda.sh -b -p $HOME/miniconda
   - export PATH="$HOME/miniconda/bin:$PATH"
-  - conda install --yes numpy pytables numba cython future nose docutils matplotlib
+  - conda update --yes conda
   - conda info -a
-  - pip install -r requirements.txt
-  - python setup.py develop
+  - conda install --yes matplotlib numba numpy pytables tqdm nose docutils
+  - pip install -e .
+  - conda list
 
 script: nosetests
 
@@ -32,4 +35,6 @@ deploy:
     secure: EOfeXP4oyoNLY8Ot2/pX3k2Acvk5Xn0VkBeqXHND/rjm4iveUGrLbMDOffDnvkFgSYQ6PO/UqZjSb8vPd5nQ1Uhw8YyEhXUTPVWOz7ebq/xOmI8DIpFQH24/u7K3D9ygm7mlN3ozz9/6Gvk2VXk8OUT8csMtIJ586FnNBFdq0XVXzneHx6Ppr4GvAvh5Li5dd0ZqL1Cd2JZZyhWbQzidJgBkU1NOD7pRmEPh7dfG23rOEuzHQPyip8PKw86ErbjRD6WevjyFsetT66je3G8+ZSvJIDNVQ95oohhBZ7bRA+VwHnt2MdWxBYSAq7ZxbNmcs5LsvuNiJRyGo9Iue97yKI/EX0GzK/mA0pO/kdu0n1BzXxVePtxBOxLgzmEKs2S0IV45zdlAIfOjs7gLM8mHjiFC6oFuDddKPp5dYRMpOERt3jfQVBbSWpGkN4tcwXZ/1xMm1IxTaU06YQMLKtRqo2N5k9aWMSsvFfagQ44WW658ra/15TdaZyniBCiYQ0a3NDYEpjZX4n4Sh0JDcGqlyOJcpcq+gl2NaIADX+X6Qoe6C7s036LowfoTDh83X72hjvm8smrdGL1op7DQo3dGxwU6FRvf78Qw528v2CkrdTHzIOr5IEuZkh+xGiGJE2UDTwHdq/nAr+O79s2yAakvf/DL/s8ZU+MvZ21dobtnLAg=
   on:
     tags: true
-    repo: SiLab-Bonn/pybar_mimosa26_interpreter
+    repo: SiLab-Bonn/pyBAR_mimosa26_interpreter
+  skip_existing: true
+  distributions: sdist bdist_wheel
