@@ -200,7 +200,7 @@ class RawDataInterpreter(object):
             self.analyze_m26_header_ids = analyze_m26_header_ids
         for analyze_m26_header_id in self.analyze_m26_header_ids:
             if analyze_m26_header_id < 0 or analyze_m26_header_id >= 2**16:
-                raise ValueError('Invlaid header ID.')
+                raise ValueError('Invalid header ID.')
         self.analyze_m26_header_ids = np.asarray(self.analyze_m26_header_ids, dtype=np.uint16)
         self.plane_id_to_index = np.full(shape=max(self.analyze_m26_header_ids) + 1, fill_value=-1, dtype=np.int32)
         for plane_index, plane_id in enumerate(self.analyze_m26_header_ids):
@@ -400,7 +400,7 @@ def _interpret_raw_data(raw_data, trigger_data, trigger_data_index, telescope_da
                         m26_data_loss[plane_index] = True
                         continue
                 elif m26_word_index[plane_index] == 5 + m26_frame_length[plane_index] + 2:  # Frame trailer1
-                    if not is_frame_trailer1(raw_data_word, plane=plane_index + 1):
+                    if not is_frame_trailer1(raw_data_word, plane=plane_id):
                         m26_data_loss[plane_index] = True
                         continue
                     else:
