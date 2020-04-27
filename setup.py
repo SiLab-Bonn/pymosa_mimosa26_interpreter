@@ -12,10 +12,10 @@ with open('requirements.txt') as f:
     install_requires = f.read().splitlines()
 
 setup(
-    name='pyBAR_mimosa26_interpreter',
+    name='pymosa_mimosa26_interpreter',
     version=version,
     description='Interpreter for Mimosa26 raw data recorded with pymosa DAQ',
-    url='https://github.com/SiLab-Bonn/pyBAR_mimosa26_interpreter',
+    url='https://github.com/SiLab-Bonn/pymosa_mimosa26_interpreter',
     license='BSD 3-Clause License',
     long_description='',
     author=author,

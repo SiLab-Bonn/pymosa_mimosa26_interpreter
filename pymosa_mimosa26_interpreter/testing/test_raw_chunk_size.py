@@ -1,8 +1,8 @@
 import os
 import unittest
 
-from pyBAR_mimosa26_interpreter import data_interpreter
-from pyBAR_mimosa26_interpreter.testing.tools.test_tools import compare_h5_files
+from pymosa_mimosa26_interpreter import data_interpreter
+from pymosa_mimosa26_interpreter.testing.tools.test_tools import compare_h5_files
 
 
 class TestRawChunkSize(unittest.TestCase):

@@ -15,9 +15,9 @@ try:
 except ImportError:
     pass
 
-from pyBAR_mimosa26_interpreter import raw_data_interpreter
+from pymosa_mimosa26_interpreter import raw_data_interpreter
 try:
-    from pyBAR_mimosa26_interpreter import plotting
+    from pymosa_mimosa26_interpreter import plotting
 except ImportError:
     pass
 

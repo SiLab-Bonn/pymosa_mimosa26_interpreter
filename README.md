@@ -1,8 +1,8 @@
 
-# Mimosa26 Interpreter [![Build Status](https://travis-ci.org/SiLab-Bonn/pyBAR_mimosa26_interpreter.svg?branch=master)](https://travis-ci.org/SiLab-Bonn/pyBAR_mimosa26_interpreter) [![Build status](https://ci.appveyor.com/api/projects/status/6ur82s62x9hs7mj4?svg=true)](https://ci.appveyor.com/project/laborleben/pybar-mimosa26-interpreter)
+# Mimosa26 Interpreter [![Build Status](https://travis-ci.org/SiLab-Bonn/pymosa_mimosa26_interpreter.svg?branch=master)](https://travis-ci.org/SiLab-Bonn/pymosa_mimosa26_interpreter) [![Build status](https://ci.appveyor.com/api/projects/status/6ur82s62x9hs7mj4?svg=true)](https://ci.appveyor.com/project/laborleben/pymosa-mimosa26-interpreter)
 
 
-pyBAR_mimosa26_interpreter - A Mimosa26 raw data interpreter in Python.
+pymosa_mimosa26_interpreter - A Mimosa26 raw data interpreter in Python.
 
 Interpreter for [Mimosa26](http://www.iphc.cnrs.fr/List-of-MIMOSA-chips.html) raw data recorded with [pymosa](https://github.com/SiLab-Bonn/pymosa) DAQ.
 
@@ -26,8 +26,8 @@ pip install .
 ## Usage
 
 An example script which does the raw data interpretation as well as the creation of a hit table
-is located in the [`examples`](https://github.com/SiLab-Bonn/pyBAR_mimosa26_interpreter/blob/master/examples/) folder. The ouput file can be used with [Beam Telescope Analysis (BTA)](https://github.com/SiLab-Bonn/beam_telescope_analysis).
+is located in the [`examples`](https://github.com/SiLab-Bonn/pymosa_mimosa26_interpreter/blob/master/examples/) folder. The ouput file can be used with [Beam Telescope Analysis (BTA)](https://github.com/SiLab-Bonn/beam_telescope_analysis).
 
 ## Support
 
-Please use GitHub's [issue tracker](https://github.com/SiLab-Bonn/pyBAR_mimosa26_interpreter/issues) for bug reports/feature requests/questions.
+Please use GitHub's [issue tracker](https://github.com/SiLab-Bonn/pymosa_mimosa26_interpreter/issues) for bug reports/feature requests/questions.

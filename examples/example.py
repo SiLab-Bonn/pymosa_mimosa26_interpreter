@@ -12,8 +12,8 @@ from tqdm import tqdm
 
 from contextlib2 import ExitStack
 
-from pyBAR_mimosa26_interpreter import data_interpreter
-from pyBAR_mimosa26_interpreter import raw_data_interpreter
+from pymosa_mimosa26_interpreter import data_interpreter
+from pymosa_mimosa26_interpreter import raw_data_interpreter
 
 from beam_telescope_analysis.hit_analysis import default_hits_dtype
 
@@ -37,9 +37,9 @@ def process_dut(raw_data_file, output_filename=None, output_filenames=None, anal
         Trigger/TLU FSM data mode.
     analyze_m26_header_ids : list
         List of Mimosa26 header IDs that will be interpreted.
-        If None, the value defaults to the global value pyBAR_mimosa26_interpreter.raw_data_interpreter.DEFAULT_PYMOSA_M26_HEADER_IDS.
+        If None, the value defaults to the global value pymosa_mimosa26_interpreter.raw_data_interpreter.DEFAULT_PYMOSA_M26_HEADER_IDS.
     timing_offset : int
-        Timing offset for the pyBAR_mimosa26_interpreter. The value has impact on the start of frame to trigger word alignment.
+        Timing offset for the pymosa_mimosa26_interpreter. The value has impact on the start of frame to trigger word alignment.
 
     Returns
     -------
@@ -69,7 +69,7 @@ def format_hit_table(input_filename, output_filenames=None, analyze_m26_header_i
         If None, the filenames will be generated.
     analyze_m26_header_ids : list
         List of Mimosa26 header IDs that will be interpreted.
-        If None, the value defaults to the global value pyBAR_mimosa26_interpreter.raw_data_interpreter.DEFAULT_PYMOSA_M26_HEADER_IDS.
+        If None, the value defaults to the global value pymosa_mimosa26_interpreter.raw_data_interpreter.DEFAULT_PYMOSA_M26_HEADER_IDS.
     chunk_size : uint
         Chunk size of the data when reading from file.
 
@@ -133,5 +133,5 @@ def format_hit_table(input_filename, output_filenames=None, analyze_m26_header_i
 if __name__ == "__main__":
     # Single file processing
     # Input raw data filename
-    raw_data_file = '../pyBAR_mimosa26_interpreter/testing/anemone_raw_data.h5'
+    raw_data_file = '../pymosa_mimosa26_interpreter/testing/anemone_raw_data.h5'
     process_dut(raw_data_file=raw_data_file, output_filename="./anemone_interpreted.h5", trigger_data_format=2)

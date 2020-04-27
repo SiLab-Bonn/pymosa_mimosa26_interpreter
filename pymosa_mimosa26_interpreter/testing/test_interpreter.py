@@ -8,9 +8,9 @@ import unittest
 import tables as tb
 import numpy as np
 
-from pyBAR_mimosa26_interpreter import data_interpreter
-from pyBAR_mimosa26_interpreter import raw_data_interpreter
-# from pyBAR_mimosa26_interpreter.testing.tools.test_tools import compare_h5_files
+from pymosa_mimosa26_interpreter import data_interpreter
+from pymosa_mimosa26_interpreter import raw_data_interpreter
+# from pymosa_mimosa26_interpreter.testing.tools.test_tools import compare_h5_files
 
 testing_path = os.path.dirname(__file__)  # Get file path
 tests_data_folder = os.path.abspath(os.path.join(os.path.dirname(os.path.realpath(testing_path)) + r'/testing/'))  # Set test data path

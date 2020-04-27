@@ -5,7 +5,7 @@ Installation
 Install the required packages:
 
 .. code-block:: bash
- 
+
    conda install numba numpy tables matplotlib tqdm
 
 Then install the Mimosa26 interpreter:
@@ -14,7 +14,7 @@ Then install the Mimosa26 interpreter:
 
    python setup.py develop
 
- 
+
 
 .. toctree::
    :numbered:
@@ -27,8 +27,8 @@ Due to the fact that `pymosa <https://github.com/SiLab-Bonn/pymosa>`_ features c
 Within this package the event building is done by assigning trigger words (from TLU) to data of one Mimosa26 frame, see the event building section.
 
 Notes:
- - Due to the fact that trigger words have to be assigned to Mimosa26 frame data it is mandatory to choose the combined 
-   (15 bit trigger timestamp and 16 bit trigger number) trigger data format (trigger data format : 2). 
+ - Due to the fact that trigger words have to be assigned to Mimosa26 frame data it is mandatory to choose the combined
+   (15 bit trigger timestamp and 16 bit trigger number) trigger data format (trigger data format : 2).
    This is default data format used in `pymosa <https://github.com/SiLab-Bonn/pymosa>`_.
 
 
@@ -36,7 +36,7 @@ Raw data interpretation
 ========================
 
 The result of the raw data analysis is stored into a hit table containing events of all Mimosa26 planes. The event building is done using the TLU words (see Event building section)
-Additionally, for each plane an occupancy map is stored and an event status histogram is created. 
+Additionally, for each plane an occupancy map is stored and an event status histogram is created.
 
 The raw data structure of Mimosa26 data looks as follows:
  - Frame header HIGH and LOW (contains timestamp, generated from R/O, indicates the start of a Mimosa26 frame)
@@ -46,7 +46,7 @@ The raw data structure of Mimosa26 data looks as follows:
  - ...
  - ...
  - Frame tailer HIGH and LOW (indicates the end of a Mimosa26 frame)
- 
+
 
 Every Mimosa26 raw data word (32 bit) is composed as follows
 
@@ -59,8 +59,8 @@ The trigger word (32 bit) is composed as follows
 +--------------------+--------------------+
 | HEADER (1 bit) = 1 | DATA WORD (31 bit) |
 +--------------------+--------------------+
- 
- 
+
+
  Note:
   - HEADER = 0x20 (from R/0)
   - IDENTYFIER = 1 - 6 (plane identyfier, from R/0)
@@ -88,7 +88,7 @@ In analogy to this the stop timestamp of the integration time is calculated by
 
 .. math::
    T_\text{stop} = T_\text{start} + f_0 + T_\text{offset}.
-   
+
 Using the readout window for each row (frame) data for every readout window one (or multiple) trigger timestamp(s) can be assigned to it, if the trigger timestamp lies within this specific row window.
 In this way to each Mimosa26 frame data a trigger timestamp is assigned defining one event.
 
@@ -130,8 +130,8 @@ The following table shows the possible event stati (8 bit):
 Methods
 -------
 
-.. autofunction:: pyBAR_mimosa26_interpreter.raw_data_interpreter._interpret_raw_data
-.. autofunction:: pyBAR_mimosa26_interpreter.raw_data_interpreter._build_events
+.. autofunction:: pymosa_mimosa26_interpreter.raw_data_interpreter._interpret_raw_data
+.. autofunction:: pymosa_mimosa26_interpreter.raw_data_interpreter._build_events
 
 Usage
 ======
@@ -149,6 +149,6 @@ A full example which interpretes the raw data and converts the hit tables into a
 Methods
 -------
 
-.. autoclass:: pyBAR_mimosa26_interpreter.data_interpreter.DataInterpreter
+.. autoclass:: pymosa_mimosa26_interpreter.data_interpreter.DataInterpreter
 
 
