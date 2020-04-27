@@ -7,32 +7,32 @@ sudo: false
 
 notifications:
   email:
-  - hirono@physik.uni-bonn.de
-  - pohl@physik.uni-bonn.de
+  - dieter@physik.uni-bonn.de
   - janssen@physik.uni-bonn.de
+  - pohl@physik.uni-bonn.de
 
 install:
-  - if [[ "$TRAVIS_PYTHON_VERSION" == "2.7" ]]; then
-      wget https://repo.continuum.io/miniconda/Miniconda2-latest-Linux-x86_64.sh -O miniconda.sh;
-    else
-      wget https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh -O miniconda.sh;
-    fi
-  - chmod +x miniconda.sh
-  - bash miniconda.sh -b -p $HOME/miniconda
-  - export PATH="$HOME/miniconda/bin:$PATH"
-  - conda update --yes conda
-  - conda info -a
-  - conda install --yes matplotlib numba numpy pytables tqdm nose docutils
-  - pip install -e .
-  - conda list
+- if [[ "$TRAVIS_PYTHON_VERSION" == "2.7" ]]; then
+    wget https://repo.continuum.io/miniconda/Miniconda2-latest-Linux-x86_64.sh -O miniconda.sh;
+  else
+    wget https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh -O miniconda.sh;
+  fi
+- chmod +x miniconda.sh
+- bash miniconda.sh -b -p $HOME/miniconda
+- export PATH="$HOME/miniconda/bin:$PATH"
+- conda update --yes conda
+- conda info -a
+- conda install --yes matplotlib numba numpy pytables tqdm nose docutils
+- pip install -e .
+- conda list
 
 script: nosetests
 
 deploy:
   provider: pypi
-  user: DavidLP
+  user: __token__
   password:
-    secure: EOfeXP4oyoNLY8Ot2/pX3k2Acvk5Xn0VkBeqXHND/rjm4iveUGrLbMDOffDnvkFgSYQ6PO/UqZjSb8vPd5nQ1Uhw8YyEhXUTPVWOz7ebq/xOmI8DIpFQH24/u7K3D9ygm7mlN3ozz9/6Gvk2VXk8OUT8csMtIJ586FnNBFdq0XVXzneHx6Ppr4GvAvh5Li5dd0ZqL1Cd2JZZyhWbQzidJgBkU1NOD7pRmEPh7dfG23rOEuzHQPyip8PKw86ErbjRD6WevjyFsetT66je3G8+ZSvJIDNVQ95oohhBZ7bRA+VwHnt2MdWxBYSAq7ZxbNmcs5LsvuNiJRyGo9Iue97yKI/EX0GzK/mA0pO/kdu0n1BzXxVePtxBOxLgzmEKs2S0IV45zdlAIfOjs7gLM8mHjiFC6oFuDddKPp5dYRMpOERt3jfQVBbSWpGkN4tcwXZ/1xMm1IxTaU06YQMLKtRqo2N5k9aWMSsvFfagQ44WW658ra/15TdaZyniBCiYQ0a3NDYEpjZX4n4Sh0JDcGqlyOJcpcq+gl2NaIADX+X6Qoe6C7s036LowfoTDh83X72hjvm8smrdGL1op7DQo3dGxwU6FRvf78Qw528v2CkrdTHzIOr5IEuZkh+xGiGJE2UDTwHdq/nAr+O79s2yAakvf/DL/s8ZU+MvZ21dobtnLAg=
+    secure: eAflsFfISZIqR74jYmKfdebyGQfoPYBycE2AdmAJFo7CiDhLvfgVbHHc5W7jYA0xPtPIemaLkoeLjKN/ZqmhzFQH810jybxDewvWOq1935wzHDfbd/viRJx0NeS8Tkf22/G6+zcNcJolzS/xHWXIuUgKG/vu05cFll1NIDnGeFaJsUDooNmBIiVjuUrAHcr9xRjnkalVBGe15U0/gAMWM1W4SZDtWzVV9Nn9UGvXwJlP8NPWrW4YZFbSjwbRCHtztjwA2kYxdspICvX4/Jnl2x9U50sRus4Cv1b7PZ5Gy881OkkuIV2ZXFzsLTjdCQMrBx95a/I6/BN1tsa01W7i52rYn4DkH1VgUAZKl/97WlYmwepJVUluhLN0UgsRbteBnBxnXGrpBApYEu865+0b/7ljW8jO92DKMz8eTf3mJ2MhfcAfItjTn9M4hMps79J3Hf1DUlngIv0pxvU9PBcj4bmwkp8ksVhMM4vdMxf8cOP38K3FatDJBoaoB/LUsMnAc/+31Ygo3TvOryFIAt9U1Cdu3PUdhAgUgLBa340yETd98/pRcODhb+aWhyoT/ha0Lp6KD4T8vnG6cMqWJrZoPgzU7GKXinZoZGjq84f/Ybq4TFx3SwI9gCmflruIZAy9gGhPoN5IHV/gtRcZUbbreprBIZxq52Be/R12fsDh5nM=
   on:
     tags: true
     repo: SiLab-Bonn/pymosa_mimosa26_interpreter
