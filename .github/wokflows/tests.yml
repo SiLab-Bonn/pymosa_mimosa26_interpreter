@@ -1,0 +1,38 @@
+name: Hardware tests
+
+on:
+  push:
+    branches:
+    - master
+  pull_request:
+    branches:
+    - master
+
+jobs:
+  tests:
+    name: Test
+    runs-on: ubuntu-20.04
+    env:
+      SIM: ${{matrix.sim}}
+    strategy:
+      fail-fast: false
+    steps:
+    - uses: actions/checkout@v2
+    - name: Set up Anaconda
+      uses: conda-incubator/setup-miniconda@v2
+      with:
+        auto-update-conda: true
+        python-version: 3.9
+    - name: Install Conda dependencies
+      shell: bash -l {0}
+      run: |
+        conda info -a
+        conda install --yes matplotlib numba numpy pytables tqdm pytest docutils
+    - name: Install package
+      shell: bash -l {0}
+      run: |
+        pip install -e .
+    - name: Test
+      shell: bash -l {0}
+      run: |
+        pytest pymosa_mimosa26_interpreter/testing/test_*.py
