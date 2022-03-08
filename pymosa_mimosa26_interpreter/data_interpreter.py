@@ -94,7 +94,7 @@ class DataInterpreter(object):
             if analyze_m26_header_id < 0 or analyze_m26_header_id >= 2**16:
                 raise ValueError('Invlaid header ID.')
         self.analyze_m26_header_ids = np.asarray(self.analyze_m26_header_ids, dtype=np.uint16)
-        self.plane_id_to_index = np.full(shape=max(self.analyze_m26_header_ids) + 1, fill_value=-1, dtype=np.int32)
+        self.plane_id_to_index = -1 * np.ones(shape=max(self.analyze_m26_header_ids) + 1, dtype=np.int32)
         for plane_index, plane_id in enumerate(self.analyze_m26_header_ids):
             self.plane_id_to_index[plane_id] = plane_index
         logging.info('Interpreting Mimosa26 planes with header IDs: %s' % ', '.join([str(id) for id in self.analyze_m26_header_ids]))

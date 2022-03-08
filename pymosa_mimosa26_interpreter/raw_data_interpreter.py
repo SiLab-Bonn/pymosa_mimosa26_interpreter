@@ -202,7 +202,7 @@ class RawDataInterpreter(object):
             if analyze_m26_header_id < 0 or analyze_m26_header_id >= 2**16:
                 raise ValueError('Invalid header ID.')
         self.analyze_m26_header_ids = np.asarray(self.analyze_m26_header_ids, dtype=np.uint16)
-        self.plane_id_to_index = np.full(shape=max(self.analyze_m26_header_ids) + 1, fill_value=-1, dtype=np.int32)
+        self.plane_id_to_index = -1 * np.ones(shape=max(self.analyze_m26_header_ids) + 1, dtype=np.int32)
         for plane_index, plane_id in enumerate(self.analyze_m26_header_ids):
             self.plane_id_to_index[plane_id] = plane_index
         self.reset()
@@ -225,7 +225,7 @@ class RawDataInterpreter(object):
         self.m26_n_words = np.zeros(shape=len(self.analyze_m26_header_ids), dtype=np.uint32)  # The number of words containing column / row info
         self.m26_rows = np.zeros(shape=len(self.analyze_m26_header_ids), dtype=np.uint32)  # The actual readout row (rolling shutter)
         self.m26_frame_status = np.zeros(shape=len(self.analyze_m26_header_ids), dtype=np.uint32)  # The status flags for the actual frames
-        self.last_completed_m26_frame_ids = np.full(shape=len(self.analyze_m26_header_ids), dtype=np.int64, fill_value=-1)  # The status if the frame is complete for the actual frame
+        self.last_completed_m26_frame_ids = -1 * np.ones(shape=len(self.analyze_m26_header_ids), dtype=np.int64)  # The status if the frame is complete for the actual frame
         # Per event variables
         self.event_number = np.int64(-1)  # The event number of the actual trigger, event number starts at 0
         self.trigger_number = np.int64(-1)  # The trigger number of the actual trigger
@@ -555,8 +555,8 @@ def _build_events(trigger_data, trigger_data_index, telescope_data, telescope_da
     TBD
     '''
     latest_trigger_data_index = -1
-    finished_telescope_data_indices = np.full(shape=len(analyze_m26_header_ids), dtype=np.int64, fill_value=-1)
-    last_event_trigger_data_indices = np.full(shape=len(analyze_m26_header_ids), dtype=np.int64, fill_value=-1)
+    finished_telescope_data_indices = -1 * np.ones(shape=len(analyze_m26_header_ids), dtype=np.int64)
+    last_event_trigger_data_indices = -1 * np.ones(shape=len(analyze_m26_header_ids), dtype=np.int64)
     finished_event = np.ones(shape=len(analyze_m26_header_ids), dtype=np.bool_)
     curr_event_status = np.zeros(shape=len(analyze_m26_header_ids), dtype=np.uint32)
 
