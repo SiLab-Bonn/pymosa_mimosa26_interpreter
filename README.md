@@ -1,5 +1,5 @@
 
-# Mimosa26 Interpreter ![Build status](https://github.com/SiLab-Bonn/pymosa_mimosa26_interpreter/actions/workflows/main.yml/badge.svg?branch=master)
+# Mimosa26 Interpreter ![Build status](https://github.com/SiLab-Bonn/pymosa_mimosa26_interpreter/actions/workflows/tests.yml/badge.svg?branch=master)
 
 
 pymosa_mimosa26_interpreter - A Mimosa26 raw data interpreter in Python.
