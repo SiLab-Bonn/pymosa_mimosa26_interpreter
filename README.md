@@ -1,5 +1,5 @@
 
-# Mimosa26 Interpreter [![Build Status](https://travis-ci.org/SiLab-Bonn/pymosa_mimosa26_interpreter.svg?branch=master)](https://travis-ci.org/SiLab-Bonn/pymosa_mimosa26_interpreter) [![Build status](https://ci.appveyor.com/api/projects/status/6ur82s62x9hs7mj4?svg=true)](https://ci.appveyor.com/project/laborleben/pymosa-mimosa26-interpreter)
+# Mimosa26 Interpreter ![Build status](https://github.com/SiLab-Bonn/pymosa_mimosa26_interpreter/actions/workflows/main.yml/badge.svg?branch=master)
 
 
 pymosa_mimosa26_interpreter - A Mimosa26 raw data interpreter in Python.
@@ -31,3 +31,6 @@ is located in the [`examples`](https://github.com/SiLab-Bonn/pymosa_mimosa26_int
 ## Support
 
 Please use GitHub's [issue tracker](https://github.com/SiLab-Bonn/pymosa_mimosa26_interpreter/issues) for bug reports/feature requests/questions.
+
+## Tests
+Software is tested with Ubuntu 20.04 using Python 3.9.
