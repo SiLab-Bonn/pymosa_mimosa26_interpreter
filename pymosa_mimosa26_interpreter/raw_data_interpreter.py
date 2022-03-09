@@ -218,7 +218,7 @@ class RawDataInterpreter(object):
         # Per frame variables
         self.m26_frame_ids = np.zeros(shape=len(self.analyze_m26_header_ids), dtype=np.int64)  # The Mimosa26 frame ID of the actual frame
         self.m26_frame_length = np.zeros(shape=len(self.analyze_m26_header_ids), dtype=np.uint32)  # The number of "useful" data words for the actual frame
-        self.m26_data_loss = np.ones(len(self.analyze_m26_header_ids), dtype=np.bool)  # The data loss status for the actual frame
+        self.m26_data_loss = np.ones(len(self.analyze_m26_header_ids), dtype=np.bool_)  # The data loss status for the actual frame
         self.m26_word_index = np.zeros(shape=len(self.analyze_m26_header_ids), dtype=np.uint32)  # The word index per device of the actual frame
         self.m26_timestamps = np.zeros(shape=len(self.analyze_m26_header_ids), dtype=np.int64)  # The timestamp for each plane (in units of 40 MHz)
         self.last_m26_timestamps = np.zeros(shape=len(self.analyze_m26_header_ids), dtype=np.int64)
