@@ -59,7 +59,6 @@ class DataInterpreter(object):
             Chunk size of the data when reading from file. The larger the chunk size, the more RAM is consumed.
         '''
         # Activate pure python mode by setting the environment variable NUMBA_DISABLE_JIT
-        pure_python
         if pure_python:
             logging.info('PURE PYTHON MODE: INTENDED FOR TESTING ONLY! YOU CANNOT SWITCH THE MODE WITHIN THE PYTHON INTERPRETER INSTANCE!')
             os.environ['NUMBA_DISABLE_JIT'] = '1'
@@ -172,23 +171,23 @@ class DataInterpreter(object):
                 pbar = tqdm(total=in_file_h5.root.raw_data.shape[0], ncols=80)
                 for i in range(0, in_file_h5.root.raw_data.shape[0], self.chunk_size):  # Loop over all words in the actual raw data file in chunks
                     raw_data_chunk = in_file_h5.root.raw_data.read(i, i + self.chunk_size)
-                    hits = self.interpreter.interpret_raw_data(raw_data=raw_data_chunk)
+                    hits, telescope_data = self.interpreter.interpret_raw_data(raw_data=raw_data_chunk)
                     if self.create_hit_table:
                         hit_table.append(hits)
                         hit_table.flush()
                     if self.create_occupancy_hist:
-                        fill_occupancy_hist(occupancy_hist, hits, self.plane_id_to_index)
+                        # Use pure telescope data to create occupancy histograms (hits are data corresponding to events and do not correspond to pure data from Mimosa26)
+                        fill_occupancy_hist(occupancy_hist, telescope_data, self.plane_id_to_index)
                     if self.create_error_hist:
                         fill_event_status_hist(event_status_hist, hits, self.plane_id_to_index)
                     pbar.update(raw_data_chunk.shape[0])
                 pbar.close()
 
                 # get last incomplete events
-                hits = self.interpreter.interpret_raw_data(raw_data=None, build_all_events=True)
+                hits, _ = self.interpreter.interpret_raw_data(raw_data=None, build_all_events=True)
                 if self.create_hit_table:
                     hit_table.append(hits)
-                if self.create_occupancy_hist:
-                    fill_occupancy_hist(occupancy_hist, hits, self.plane_id_to_index)
+                    hit_table.flush()
                 if self.create_error_hist:
                     fill_event_status_hist(event_status_hist, hits, self.plane_id_to_index)
 
@@ -198,17 +197,14 @@ class DataInterpreter(object):
                     logging.info('Storing histograms %sfor Mimosa26 plane with header ID %d.' % ('and creating plots ' if self.output_pdf else '', plane))
 
                     if self.create_occupancy_hist:
-                        occupancy_array = out_file_h5.create_carray(
+                        out_file_h5.create_carray(
                             where=out_file_h5.root,
                             name='HistOcc_plane%d' % plane,
                             title='Occupancy histogram for Mimosa26 plane with header ID %d' % plane,
-                            atom=tb.Atom.from_dtype(occupancy_hist[plane_index].dtype),
-                            shape=occupancy_hist[plane_index].shape,
-                            filters=tb.Filters(
-                                complib='blosc',
-                                complevel=5,
-                                fletcher32=False))
-                        occupancy_array[:] = occupancy_hist[plane_index]
+                            obj=occupancy_hist[plane_index, :, :],
+                            filters=tb.Filters(complib='blosc',
+                                               complevel=5,
+                                               fletcher32=False))
                         if self.output_pdf:
                             # plot fancy occupancy histogram
                             try:

@@ -26,6 +26,8 @@ class TestRawChunkSize(unittest.TestCase):
             self.temp_output_files.append(temp_output_file)
             with data_interpreter.DataInterpreter(raw_data_file=input_file, analyzed_data_file=temp_output_file, trigger_data_format=2, create_pdf=False, chunk_size=curr_chunk_size) as interpreter:
                 interpreter.create_hit_table = True
+                interpreter.create_occupancy_hist = True
+                interpreter.create_error_hist = True
                 interpreter.interpret_word_table()
 
             checks_passed, error_msg = compare_h5_files(reference_file, temp_output_file, node_names=None, detailed_comparison=True, exact=True, rtol=1e-5, atol=1e-8, chunk_size=1000000)

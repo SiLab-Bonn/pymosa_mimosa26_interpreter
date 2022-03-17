@@ -269,6 +269,10 @@ class RawDataInterpreter(object):
         '''
         if raw_data is None:
             raw_data = np.zeros(shape=0, dtype=np.uint32)
+        if self.telescope_data_index != -1:
+            telescope_data_index_start = self.telescope_data_index + 1
+        else:
+            telescope_data_index_start = 0
         # Analyze raw data
         self.trigger_data, self.trigger_data_index, self.telescope_data, self.telescope_data_index, self.m26_frame_ids, self.m26_frame_length, self.m26_data_loss, self.m26_word_index, self.m26_timestamps, self.last_m26_timestamps, self.m26_n_words, self.m26_rows, self.m26_frame_status, self.last_completed_m26_frame_ids, self.event_number, self.trigger_number, self.trigger_timestamp = _interpret_raw_data(
             raw_data=raw_data,
@@ -293,6 +297,10 @@ class RawDataInterpreter(object):
             build_all_events=build_all_events,
             analyze_m26_header_ids=self.analyze_m26_header_ids,
             plane_id_to_index=self.plane_id_to_index)
+
+        # Get data from telescope (just hit data, no assignment to events or data multiplication)
+        telescope_data = self.telescope_data[telescope_data_index_start:self.telescope_data_index + 1].copy()
+
         # Build events
         self.trigger_data, self.trigger_data_index, self.telescope_data, self.telescope_data_index, self.hits, self.hits_index = _build_events(
             trigger_data=self.trigger_data,
@@ -310,7 +318,7 @@ class RawDataInterpreter(object):
         hits = self.hits[:self.hits_index + 1].copy()
         self.hits_index -= (self.hits_index + 1)
 
-        return hits
+        return hits, telescope_data
 
 
 @njit(locals={'trigger_data_index': numba.int64, 'telescope_data_index': numba.int64, 'trigger_status': numba.uint32, 'last_trigger_number': numba.int64, 'last_trigger_timestamp': numba.int64, 'n_missing_events': numba.uint32})
