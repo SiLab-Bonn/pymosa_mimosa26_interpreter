@@ -134,4 +134,5 @@ if __name__ == "__main__":
     # Single file processing
     # Input raw data filename
     raw_data_file = '../pymosa_mimosa26_interpreter/testing/anemone_raw_data.h5'
-    process_dut(raw_data_file=raw_data_file, output_filename="./anemone_interpreted.h5", trigger_data_format=2)
+    analyze_m26_header_ids = [1, 2, 3, 4, 5, 6]  # Specify M26 planes which are analyzed. Exclude not working planes.
+    process_dut(raw_data_file=raw_data_file, output_filename="./anemone_interpreted.h5", trigger_data_format=2, analyze_m26_header_ids=analyze_m26_header_ids)
