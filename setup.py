@@ -26,6 +26,6 @@ setup(
     packages=find_packages(),
     include_package_data=True,  # accept all data files and directories matched by MANIFEST.in or found in source control
     keywords=['mimosa26', 'test-beam', 'pixel', 'telescope'],
-    python_requires='>=2.7',
+    python_requires='>=3.10',
     platforms='any'
 )
